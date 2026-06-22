@@ -1,0 +1,42 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>de.spotlessformatplugin.SpotlessFormatPlugin</id>
+
+    <!-- Public plugin name should be written in Title Case.
+     Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
+    <name>SpotlessFormatPlugin</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor url="https://github.com/kroeppelt/SpotlessFormatPlugin">SpotlessFormatPlugin</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
+    <description><![CDATA[
+        A plugin to use Formatter XML and Import Order files via Spotless logic within IntelliJ IDEA.<br>
+        Allows configuring paths to these files and provides an on-save action to format changed Java files automatically.
+        ]]></description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <!-- Extensions defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+        <projectConfigurable
+                instance="de.spotlessformatplugin.settings.SpotlessFormatConfigurable"
+                id="de.spotlessformatplugin.settings.SpotlessFormatConfigurable"
+                displayName="Spotless Formatter"/>
+
+        <notificationGroup id="Spotless Formatter"
+                           displayType="BALLOON"/>
+    </extensions>
+
+    <projectListeners>
+        <listener class="de.spotlessformatplugin.listeners.SpotlessSaveListener"
+                  topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
+    </projectListeners>
+
+</idea-plugin>
