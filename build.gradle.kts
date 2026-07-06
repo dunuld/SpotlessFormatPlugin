@@ -28,6 +28,9 @@ dependencies {
         testFramework(TestFrameworkType.Platform)
         bundledPlugin("com.intellij.java")
     }
+
+    // Spotless core library to allow in-process formatting steps in future
+    implementation("com.diffplug.spotless:spotless-lib:2.23.0")
 }
 
 tasks.test {

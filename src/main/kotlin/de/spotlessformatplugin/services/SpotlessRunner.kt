@@ -16,51 +16,84 @@ import java.io.File
 class SpotlessRunner(private val project: Project) {
 
     fun formatFile(virtualFile: VirtualFile) {
-        val settings = SpotlessFormatSettings.getInstance(project).state
-        if (!validateSettings(settings, virtualFile)) return
+        formatFiles(listOf(virtualFile))
+    }
 
-        val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return
-        
-        WriteCommandAction.runWriteCommandAction(project) {
-            CodeStyleManager.getInstance(project).reformat(psiFile)
-            val extension = virtualFile.extension
-            if (extension.equals("java", ignoreCase = true)) {
-                OptimizeImportsProcessor(project, psiFile).run()
+    fun formatFiles(virtualFiles: Collection<VirtualFile>) {
+        val settings = SpotlessFormatSettings.getInstance(project).state
+        if (!validateSettings(settings)) return
+
+        // Detect build tool (not strictly used for in-process formatting yet)
+        val buildTool = detectBuildTool()
+
+        // For now, we apply IntelliJ CodeStyle reformatting per file (ensures only changed files are reformatted).
+        // TODO: Integrate in-process Spotless core formatter steps (com.diffplug.spotless) per formatterType and formatterConfigPath.
+
+        for (virtualFile in virtualFiles) {
+            val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: continue
+
+            WriteCommandAction.runWriteCommandAction(project) {
+                CodeStyleManager.getInstance(project).reformat(psiFile)
+                val extension = virtualFile.extension
+                if (extension.equals("java", ignoreCase = true)) {
+                    OptimizeImportsProcessor(project, psiFile).run()
+                }
             }
+        }
+
+        // Optionally, notify user about build tool detection (debug/info)
+        if (buildTool != null) {
+            notifyInfo("Detected build tool: $buildTool")
         }
     }
 
-    private fun validateSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile): Boolean {
-        val extension = virtualFile.extension
-        val formatterPath = state.formatterXmlPath
-        val importOrderPath = state.importOrderPath
+    private fun detectBuildTool(): String? {
+        val basePath = project.basePath ?: return null
+        val pom = File(basePath, "pom.xml")
+        if (pom.exists()) return "maven"
+        val gradle = File(basePath, "build.gradle")
+        val gradleKts = File(basePath, "build.gradle.kts")
+        if (gradle.exists() || gradleKts.exists()) return "gradle"
+        return null
+    }
+
+    private fun validateSettings(state: SpotlessFormatSettings.State): Boolean {
+        val formatterPath = state.formatterConfigPath
+        val formatterType = state.formatterType
+
+        if (formatterType.isBlank()) {
+            notifyError("Formatter type is not configured. Please select a formatter type in settings.")
+            return false
+        }
 
         if (formatterPath.isBlank()) {
-            notifyError("Eclipse Formatter XML path is not configured.")
-            return false
-        }
-        val formatterFile = File(formatterPath)
-        if (!formatterFile.exists()) {
-            notifyError("Eclipse Formatter XML not found at: $formatterPath")
-            return false
-        }
-        if (!formatterFile.canRead()) {
-            notifyError("Eclipse Formatter XML is not readable at: $formatterPath")
-            return false
+            // Some formatter types may not require a config file; warn only for types that do (we keep it simple here)
+            // We'll allow blank for e.g. google-java-format which has no config file in many setups.
+            if (formatterType.equals("eclipse", ignoreCase = true) || formatterType.equals("custom", ignoreCase = true)) {
+                notifyError("Formatter configuration path is not configured but is required for the selected formatter: $formatterType")
+                return false
+            }
+        } else {
+            val formatterFile = File(formatterPath)
+            if (!formatterFile.exists()) {
+                notifyError("Formatter config file not found at: $formatterPath")
+                return false
+            }
+            if (!formatterFile.canRead()) {
+                notifyError("Formatter config file is not readable at: $formatterPath")
+                return false
+            }
         }
 
-        if (extension.equals("java", ignoreCase = true)) {
-            if (importOrderPath.isBlank()) {
-                notifyError("Import Order file path is not configured.")
+        // Import order file is optional; if set, validate readability
+        if (state.importOrderPath.isNotBlank()) {
+            val importFile = File(state.importOrderPath)
+            if (!importFile.exists()) {
+                notifyError("Import order file not found at: ${state.importOrderPath}")
                 return false
             }
-            val importOrderFile = File(importOrderPath)
-            if (!importOrderFile.exists()) {
-                notifyError("Import Order file not found at: $importOrderPath")
-                return false
-            }
-            if (!importOrderFile.canRead()) {
-                notifyError("Import Order file is not readable at: $importOrderPath")
+            if (!importFile.canRead()) {
+                notifyError("Import order file is not readable at: ${state.importOrderPath}")
                 return false
             }
         }
@@ -72,6 +105,13 @@ class SpotlessRunner(private val project: Project) {
         NotificationGroupManager.getInstance()
             .getNotificationGroup("Spotless Formatter")
             .createNotification("Spotless Configuration Error", content, NotificationType.ERROR)
+            .notify(project)
+    }
+
+    private fun notifyInfo(content: String) {
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("Spotless Formatter")
+            .createNotification("Spotless Formatter", content, NotificationType.INFORMATION)
             .notify(project)
     }
 }

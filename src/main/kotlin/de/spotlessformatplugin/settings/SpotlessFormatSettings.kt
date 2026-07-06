@@ -11,7 +11,11 @@ import com.intellij.openapi.project.Project
 class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.State> {
 
     class State {
-        var formatterXmlPath: String = ""
+        // Generic path to a formatter configuration file (could be XML or other formats depending on formatterType)
+        var formatterConfigPath: String = ""
+        // Which formatter to use for the configured formatterConfigPath. Examples: "eclipse", "google-java-format", "custom"
+        var formatterType: String = "eclipse"
+        // Import order file (kept for compatibility / explicit import ordering)
         var importOrderPath: String = ""
         var executeOnSave: Boolean = false
         var supportedExtensions: String = "java,xml"
