@@ -33,6 +33,8 @@ dependencies {
     implementation("com.diffplug.spotless:spotless-lib:2.23.0")
     // Google Java Format for in-process Java formatting
     implementation("com.google.googlejavaformat:google-java-format:1.15.0")
+    // ktlint for Kotlin formatting
+    implementation("com.pinterest:ktlint:0.50.0")
 }
 
 tasks.test {

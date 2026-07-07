@@ -9,8 +9,10 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.codeStyle.CodeStyleManager
+import de.spotlessformatplugin.format.FormatterUtil
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 import java.io.File
+import java.nio.charset.StandardCharsets
 
 @Service(Service.Level.PROJECT)
 class SpotlessRunner(private val project: Project) {
@@ -23,21 +25,52 @@ class SpotlessRunner(private val project: Project) {
         val settings = SpotlessFormatSettings.getInstance(project).state
         if (!validateSettings(settings)) return
 
+        val formatterType = settings.formatterType
+        val formatterConfig = settings.formatterConfigPath
+
         // Detect build tool (not strictly used for in-process formatting yet)
         val buildTool = detectBuildTool()
 
-        // For now, we apply IntelliJ CodeStyle reformatting per file (ensures only changed files are reformatted).
-        // TODO: Integrate in-process Spotless core formatter steps (com.diffplug.spotless) per formatterType and formatterConfigPath.
-
         for (virtualFile in virtualFiles) {
-            val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: continue
+            try {
+                val extension = virtualFile.extension ?: ""
+                val psiFile = PsiManager.getInstance(project).findFile(virtualFile)
 
-            WriteCommandAction.runWriteCommandAction(project) {
-                CodeStyleManager.getInstance(project).reformat(psiFile)
-                val extension = virtualFile.extension
-                if (extension.equals("java", ignoreCase = true)) {
-                    OptimizeImportsProcessor(project, psiFile).run()
+                // Read current content
+                val inputStream = virtualFile.inputStream
+                val original = inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+                inputStream.close()
+
+                // Attempt in-process formatting using FormatterUtil
+                val formatted = FormatterUtil.formatContent(formatterType, formatterConfig, virtualFile.name, original)
+
+                if (formatted != original) {
+                    // Write back only if changed
+                    WriteCommandAction.runWriteCommandAction(project) {
+                        try {
+                            virtualFile.setBinaryContent(formatted.toByteArray(StandardCharsets.UTF_8))
+                        } catch (e: Exception) {
+                            // fallback: try IntelliJ reformat if writing failed
+                            psiFile?.let { CodeStyleManager.getInstance(project).reformat(it) }
+                        }
+
+                        if (extension.equals("java", ignoreCase = true)) {
+                            psiFile?.let { OptimizeImportsProcessor(project, it).run() }
+                        }
+                    }
+                } else {
+                    // If formatter did not change content, fallback to IntelliJ reformat to preserve previous behavior
+                    psiFile?.let {
+                        WriteCommandAction.runWriteCommandAction(project) {
+                            CodeStyleManager.getInstance(project).reformat(it)
+                            if (extension.equals("java", ignoreCase = true)) {
+                                OptimizeImportsProcessor(project, it).run()
+                            }
+                        }
+                    }
                 }
+            } catch (e: Exception) {
+                notifyError("Formatting failed for ${virtualFile.path}: ${e.message}")
             }
         }
 
