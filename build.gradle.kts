@@ -18,7 +18,7 @@ repositories {
 }
 
 dependencies {
-    testImplementation(libs.junit.jupiter)
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.junit.v4)
     testRuntimeOnly(libs.junit.vintage.engine)
@@ -31,6 +31,8 @@ dependencies {
 
     // Spotless core library to allow in-process formatting steps in future
     implementation("com.diffplug.spotless:spotless-lib:2.23.0")
+    // Google Java Format for in-process Java formatting
+    implementation("com.google.googlejavaformat:google-java-format:1.15.0")
 }
 
 tasks.test {
