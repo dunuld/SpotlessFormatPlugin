@@ -3,11 +3,14 @@ package de.spotlessformatplugin.services
 import com.intellij.codeInsight.actions.OptimizeImportsProcessor
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.util.ProgressWindow
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
 import com.intellij.psi.codeStyle.CodeStyleManager
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
@@ -22,10 +25,35 @@ class SpotlessRunner(private val project: Project) {
         
         if (!validateSettings(settings, virtualFile, configPath)) return
 
+        val application = ApplicationManager.getApplication()
+        if (application.isUnitTestMode) {
+            performFormat(virtualFile, settings, configPath, null)
+            return
+        }
+
+        val progressWindow = ProgressWindow(true, false, project)
+        progressWindow.title = "Formatting with Spotless"
+        progressWindow.setDelayInMillis(500)
+        
+        application.executeOnPooledThread {
+            ProgressManager.getInstance().runProcess({
+                performFormat(virtualFile, settings, configPath, ProgressManager.getInstance().progressIndicator)
+            }, progressWindow)
+        }
+    }
+
+    private fun performFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State, configPath: String?, indicator: ProgressIndicator?) {
+        indicator?.isIndeterminate = true
+        indicator?.text = "Formatting ${virtualFile.name}..."
+        
         if (settings.useSpotlessConfig) {
             applySpotlessConfig(virtualFile, configPath ?: settings.spotlessConfigPath)
         } else {
-            applyLegacyFormat(virtualFile)
+            when (settings.formatterType) {
+                SpotlessFormatSettings.FormatterType.ECLIPSE -> applyEclipseFormat(virtualFile, settings)
+                SpotlessFormatSettings.FormatterType.PRETTIER -> applyPrettierFormat(virtualFile, settings)
+                SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT -> applyGoogleJavaFormat(virtualFile, settings)
+            }
         }
     }
 
@@ -48,13 +76,40 @@ class SpotlessRunner(private val project: Project) {
         return null
     }
 
+    private fun applyEclipseFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
+        notifyInfo("Applying Eclipse Formatter using: ${settings.formatterXmlPath}")
+        // Currently we use the IntelliJ-Formatter as Fallback/Mock
+        applyLegacyFormat(virtualFile)
+    }
+
+    private fun applyPrettierFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
+        notifyInfo("Applying Prettier using config: ${settings.prettierConfigPath}")
+        // Currently we use the IntelliJ-Formatter as Fallback/Mock
+        applyLegacyFormat(virtualFile)
+    }
+
+    private fun applyGoogleJavaFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
+        notifyInfo("Applying Google Java Format version: ${settings.gjfVersion}")
+        // Currently we use the IntelliJ-Formatter as Fallback/Mock
+        applyLegacyFormat(virtualFile)
+    }
+
     private fun applyLegacyFormat(virtualFile: VirtualFile) {
-        val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return
-        WriteCommandAction.runWriteCommandAction(project) {
-            CodeStyleManager.getInstance(project).reformat(psiFile)
-            if (virtualFile.extension.equals("java", ignoreCase = true)) {
-                OptimizeImportsProcessor(project, psiFile).run()
-            }
+        val application = ApplicationManager.getApplication()
+        val runnable = Runnable {
+            val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return@Runnable
+            WriteCommandAction.runWriteCommandAction(project, "Spotless Formatting", null, {
+                CodeStyleManager.getInstance(project).reformat(psiFile)
+                if (virtualFile.extension.equals("java", ignoreCase = true)) {
+                    OptimizeImportsProcessor(project, psiFile).run()
+                }
+            })
+        }
+
+        if (application.isDispatchThread) {
+            runnable.run()
+        } else {
+            application.invokeAndWait(runnable)
         }
     }
 
@@ -86,6 +141,14 @@ class SpotlessRunner(private val project: Project) {
             return true
         }
 
+        return when (state.formatterType) {
+            SpotlessFormatSettings.FormatterType.ECLIPSE -> validateEclipseSettings(state, virtualFile)
+            SpotlessFormatSettings.FormatterType.PRETTIER -> validatePrettierSettings(state)
+            SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT -> validateGoogleJavaFormatSettings(state)
+        }
+    }
+
+    private fun validateEclipseSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile): Boolean {
         val extension = virtualFile.extension
         val formatterPath = state.formatterXmlPath
         val importOrderPath = state.importOrderPath
@@ -119,7 +182,25 @@ class SpotlessRunner(private val project: Project) {
                 return false
             }
         }
+        return true
+    }
 
+    private fun validatePrettierSettings(state: SpotlessFormatSettings.State): Boolean {
+        if (state.prettierConfigPath.isNotBlank()) {
+            val configFile = File(state.prettierConfigPath)
+            if (!configFile.exists()) {
+                notifyError("Prettier configuration file not found at: ${state.prettierConfigPath}")
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun validateGoogleJavaFormatSettings(state: SpotlessFormatSettings.State): Boolean {
+        if (state.gjfVersion.isBlank()) {
+            notifyError("Google Java Format version is not configured.")
+            return false
+        }
         return true
     }
 

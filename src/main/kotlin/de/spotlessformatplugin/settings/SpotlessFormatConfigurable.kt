@@ -3,7 +3,10 @@ package de.spotlessformatplugin.settings
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
+import com.intellij.ui.dsl.builder.COLUMNS_SHORT
+import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.layout.not
 import com.intellij.ui.layout.selected
@@ -16,8 +19,11 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
 
     private val settings = SpotlessFormatSettings.getInstance(project)
     
+    private var formatterTypeComboBox: ComboBox<SpotlessFormatSettings.FormatterType>? = null
     private var formatterXmlField: TextFieldWithBrowseButton? = null
     private var importOrderField: TextFieldWithBrowseButton? = null
+    private var prettierConfigField: TextFieldWithBrowseButton? = null
+    private var gjfVersionField: JTextField? = null
     private var useSpotlessConfigCheckBox: JCheckBox? = null
     private var spotlessConfigField: TextFieldWithBrowseButton? = null
     private var supportedExtensionsField: JTextField? = null
@@ -31,7 +37,15 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                 useSpotlessConfigCheckBox = checkBox("Use generic Spotless configuration file").component
             }
 
-            group("Eclipse Formatter (Legacy)") {
+            group("Formatter Selection") {
+                row("Formatter Type:") {
+                    formatterTypeComboBox = comboBox(SpotlessFormatSettings.FormatterType.values().toList())
+                        .enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                        .component
+                }
+            }
+
+            group("Eclipse Formatter") {
                 row("Formatter XML:") {
                     formatterXmlField = textFieldWithBrowseButton(
                         project = project,
@@ -40,7 +54,8 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                         if (it.text.isNotEmpty() && !File(it.text).exists()) {
                             error("File does not exist")
                         } else null
-                    }.enabledIf(useSpotlessConfigCheckBox!!.selected.not()).component
+                    }.enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                        .component
                 }
                 row("Import Order File:") {
                     importOrderField = textFieldWithBrowseButton(
@@ -50,9 +65,30 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                         if (it.text.isNotEmpty() && !File(it.text).exists()) {
                             error("File does not exist")
                         } else null
-                    }.enabledIf(useSpotlessConfigCheckBox!!.selected.not()).component
+                    }.enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                        .component
                 }
-            }
+            }.visibleIf(createFormatterTypePredicate(SpotlessFormatSettings.FormatterType.ECLIPSE))
+
+            group("Prettier") {
+                row("Prettier Config:") {
+                    prettierConfigField = textFieldWithBrowseButton(
+                        project = project,
+                        fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor().withTitle("Select Prettier Config")
+                    ).comment("Path to .prettierrc or prettier.config.js")
+                        .enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                        .component
+                }
+            }.visibleIf(createFormatterTypePredicate(SpotlessFormatSettings.FormatterType.PRETTIER))
+
+            group("Google Java Format") {
+                row("Version:") {
+                    gjfVersionField = textField().comment("e.g. 1.17.0")
+                        .columns(COLUMNS_SHORT)
+                        .enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                        .component
+                }
+            }.visibleIf(createFormatterTypePredicate(SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT))
             
             group("Spotless Configuration") {
                 row("Spotless Config:") {
@@ -74,10 +110,22 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
         }
     }
 
+    private fun createFormatterTypePredicate(type: SpotlessFormatSettings.FormatterType): com.intellij.ui.layout.ComponentPredicate {
+        return object : com.intellij.ui.layout.ComponentPredicate() {
+            override fun invoke(): Boolean = formatterTypeComboBox?.selectedItem == type
+            override fun addListener(listener: (Boolean) -> Unit) {
+                formatterTypeComboBox?.addActionListener { listener(invoke()) }
+            }
+        }
+    }
+
     override fun isModified(): Boolean {
         val state = settings.state
-        return formatterXmlField?.text != state.formatterXmlPath ||
+        return formatterTypeComboBox?.selectedItem != state.formatterType ||
+                formatterXmlField?.text != state.formatterXmlPath ||
                 importOrderField?.text != state.importOrderPath ||
+                prettierConfigField?.text != state.prettierConfigPath ||
+                gjfVersionField?.text != state.gjfVersion ||
                 useSpotlessConfigCheckBox?.isSelected != state.useSpotlessConfig ||
                 spotlessConfigField?.text != state.spotlessConfigPath ||
                 supportedExtensionsField?.text != state.supportedExtensions ||
@@ -86,8 +134,11 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
 
     override fun apply() {
         val state = settings.state
+        state.formatterType = formatterTypeComboBox?.selectedItem as? SpotlessFormatSettings.FormatterType ?: SpotlessFormatSettings.FormatterType.ECLIPSE
         state.formatterXmlPath = formatterXmlField?.text ?: ""
         state.importOrderPath = importOrderField?.text ?: ""
+        state.prettierConfigPath = prettierConfigField?.text ?: ""
+        state.gjfVersion = gjfVersionField?.text ?: "1.17.0"
         state.useSpotlessConfig = useSpotlessConfigCheckBox?.isSelected ?: false
         state.spotlessConfigPath = spotlessConfigField?.text ?: ""
         state.supportedExtensions = supportedExtensionsField?.text ?: "java,xml"
@@ -97,8 +148,11 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
     override fun reset() {
         val state = settings.state
         useSpotlessConfigCheckBox?.isSelected = state.useSpotlessConfig
+        formatterTypeComboBox?.selectedItem = state.formatterType
         formatterXmlField?.text = state.formatterXmlPath
         importOrderField?.text = state.importOrderPath
+        prettierConfigField?.text = state.prettierConfigPath
+        gjfVersionField?.text = state.gjfVersion
         spotlessConfigField?.text = state.spotlessConfigPath
         supportedExtensionsField?.text = state.supportedExtensions
         executeOnSaveCheckBox?.isSelected = state.executeOnSave
