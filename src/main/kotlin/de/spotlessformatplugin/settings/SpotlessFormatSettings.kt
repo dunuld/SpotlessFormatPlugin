@@ -15,6 +15,8 @@ class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.S
         var importOrderPath: String = ""
         var executeOnSave: Boolean = false
         var supportedExtensions: String = "java,xml"
+        var useSpotlessConfig: Boolean = false
+        var spotlessConfigPath: String = ""
     }
 
     private var myState = State()
