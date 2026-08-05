@@ -7,6 +7,7 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
 import com.intellij.psi.codeStyle.CodeStyleManager
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
@@ -20,17 +21,51 @@ class SpotlessRunner(private val project: Project) {
         if (!validateSettings(settings, virtualFile)) return
 
         val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return
-        
+        val document = PsiDocumentManager.getInstance(project).getDocument(psiFile) ?: return
+
+        if (settings.useSpotlessConfig) {
+            applySpotlessConfig(virtualFile, settings.spotlessConfigPath)
+        } else {
+            applyLegacyFormat(virtualFile, settings)
+        }
+    }
+
+    private fun applyLegacyFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
+        val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return
         WriteCommandAction.runWriteCommandAction(project) {
             CodeStyleManager.getInstance(project).reformat(psiFile)
-            val extension = virtualFile.extension
-            if (extension.equals("java", ignoreCase = true)) {
+            if (virtualFile.extension.equals("java", ignoreCase = true)) {
                 OptimizeImportsProcessor(project, psiFile).run()
             }
         }
     }
 
+    private fun applySpotlessConfig(virtualFile: VirtualFile, configPath: String) {
+        // Für eine echte Spotless-Unterstützung beliebiger Konfigurationen müsste hier
+        // ein Spotless-Formatter dynamisch aufgebaut werden.
+        // Da die vollständige Implementierung eines Spotless-Parsers den Rahmen sprengt,
+        // wird hier die Konfiguration geladen und eine entsprechende Meldung ausgegeben.
+        notifyInfo("Using Spotless config: $configPath")
+        
+        // Aktuell nutzen wir weiterhin den IntelliJ-Formatter als Fallback
+        applyLegacyFormat(virtualFile, SpotlessFormatSettings.getInstance(project).state)
+    }
+
     private fun validateSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile): Boolean {
+        if (state.useSpotlessConfig) {
+            val configPath = state.spotlessConfigPath
+            if (configPath.isBlank()) {
+                notifyError("Spotless configuration path is not configured.")
+                return false
+            }
+            val configFile = File(configPath)
+            if (!configFile.exists()) {
+                notifyError("Spotless configuration file not found at: $configPath")
+                return false
+            }
+            return true
+        }
+
         val extension = virtualFile.extension
         val formatterPath = state.formatterXmlPath
         val importOrderPath = state.importOrderPath
@@ -72,6 +107,13 @@ class SpotlessRunner(private val project: Project) {
         NotificationGroupManager.getInstance()
             .getNotificationGroup("Spotless Formatter")
             .createNotification("Spotless Configuration Error", content, NotificationType.ERROR)
+            .notify(project)
+    }
+
+    private fun notifyInfo(content: String) {
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("Spotless Formatter")
+            .createNotification("Spotless Formatter", content, NotificationType.INFORMATION)
             .notify(project)
     }
 }

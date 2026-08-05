@@ -28,6 +28,8 @@ dependencies {
         testFramework(TestFrameworkType.Platform)
         bundledPlugin("com.intellij.java")
     }
+
+    implementation("com.diffplug.spotless:spotless-lib:2.45.0")
 }
 
 tasks.test {
