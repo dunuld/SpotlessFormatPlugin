@@ -10,11 +10,20 @@ import com.intellij.openapi.project.Project
 )
 class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.State> {
 
+    enum class FormatterType {
+        ECLIPSE,
+        PRETTIER,
+        GOOGLE_JAVA_FORMAT
+    }
+
     class State {
+        var formatterType: FormatterType = FormatterType.ECLIPSE
         var formatterXmlPath: String = ""
         var importOrderPath: String = ""
+        var prettierConfigPath: String = ""
+        var gjfVersion: String = "1.17.0"
         var executeOnSave: Boolean = false
-        var supportedExtensions: String = "java,xml"
+        var supportedExtensions: String = "java,xml,js,ts,json"
         var useSpotlessConfig: Boolean = false
         var spotlessConfigPath: String = ""
     }

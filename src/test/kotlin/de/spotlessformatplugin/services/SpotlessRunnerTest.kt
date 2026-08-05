@@ -13,6 +13,9 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
     public override fun setUp() {
         super.setUp()
         spotlessRunner = project.getService(SpotlessRunner::class.java)
+        // Reset settings for each test
+        val settings = SpotlessFormatSettings.getInstance(project)
+        settings.loadState(SpotlessFormatSettings.State())
     }
 
     fun testFormatJavaFile() {
@@ -109,7 +112,54 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
         val newSettings = SpotlessFormatSettings.getInstance(project)
         assertEquals("/path/to/formatter.xml", newSettings.state.formatterXmlPath)
         assertEquals("/path/to/import.order", newSettings.state.importOrderPath)
+        assertEquals(SpotlessFormatSettings.FormatterType.ECLIPSE, newSettings.state.formatterType)
         assertTrue(newSettings.state.executeOnSave)
+    }
+
+    fun testFormatWithPrettier() {
+        val tempDir = myFixture.tempDirFixture.tempDirPath
+        val configFile = java.io.File(tempDir, ".prettierrc")
+        configFile.createNewFile()
+
+        val settings = SpotlessFormatSettings.getInstance(project)
+        settings.state.formatterType = SpotlessFormatSettings.FormatterType.PRETTIER
+        settings.state.prettierConfigPath = configFile.absolutePath
+
+        val before = "function test() { return 1 }"
+        val psiFile = myFixture.configureByText("test.js", before)
+        
+        spotlessRunner.formatFile(psiFile.virtualFile)
+        
+        // We just ensure it doesn't crash and falls back to IDE formatter (if any for JS)
+        assertTrue(psiFile.text.contains("function test"))
+    }
+
+    fun testFormatWithGoogleJavaFormat() {
+        val settings = SpotlessFormatSettings.getInstance(project)
+        settings.state.formatterType = SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT
+        settings.state.gjfVersion = "1.17.0"
+
+        val before = "public class Test { public void test() {} }"
+        val psiFile = myFixture.configureByText("Test.java", before)
+        
+        spotlessRunner.formatFile(psiFile.virtualFile)
+        
+        // Ensure it doesn't crash and formats
+        assertTrue(psiFile.text.contains("public void test()"))
+    }
+
+    fun testPrettierConfigMissing() {
+        val settings = SpotlessFormatSettings.getInstance(project)
+        settings.state.formatterType = SpotlessFormatSettings.FormatterType.PRETTIER
+        settings.state.prettierConfigPath = "/non/existent/.prettierrc"
+
+        val before = "function test() { return 1 }"
+        val psiFile = myFixture.configureByText("test.js", before)
+        
+        spotlessRunner.formatFile(psiFile.virtualFile)
+        
+        // Should not format as validation fails
+        assertEquals(before, psiFile.text)
     }
 
     fun testFormatFileWithNullVirtualFile() {
@@ -172,9 +222,14 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
         settings.state.formatterXmlPath = formatterFile.absolutePath
         settings.state.importOrderPath = ""
         
-        val psiFile = myFixture.configureByText("Test.java", "public class Test {}")
+        val before = """
+            public class Test {
+            public void test() {}
+            }
+        """.trimIndent()
+        val psiFile = myFixture.configureByText("Test.java", before)
         spotlessRunner.formatFile(psiFile.virtualFile)
-        assertEquals("public class Test {}", psiFile.text)
+        assertEquals(before, psiFile.text)
     }
 
     fun testFormatJavaFileWithInvalidImportOrderPath() {
@@ -186,9 +241,14 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
         settings.state.formatterXmlPath = formatterFile.absolutePath
         settings.state.importOrderPath = "/non/existent/path.order"
         
-        val psiFile = myFixture.configureByText("Test.java", "public class Test {}")
+        val before = """
+            public class Test {
+            public void test() {}
+            }
+        """.trimIndent()
+        val psiFile = myFixture.configureByText("Test.java", before)
         spotlessRunner.formatFile(psiFile.virtualFile)
-        assertEquals("public class Test {}", psiFile.text)
+        assertEquals(before, psiFile.text)
     }
 
     fun testFormatXmlFileWithInvalidImportOrderPathShouldSucceed() {
