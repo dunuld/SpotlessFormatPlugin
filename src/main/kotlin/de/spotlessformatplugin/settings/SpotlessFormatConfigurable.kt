@@ -59,11 +59,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                     spotlessConfigField = textFieldWithBrowseButton(
                         project = project,
                         fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor().withTitle("Select Spotless Configuration File")
-                    ).comment("Path to a generic Spotless configuration file (e.g. spotless.gradle or similar)").validationOnInput {
-                        if (it.text.isNotEmpty() && !File(it.text).exists()) {
-                            error("File does not exist")
-                        } else null
-                    }.enabledIf(useSpotlessConfigCheckBox!!.selected).component
+                    ).comment("Path to a generic Spotless configuration file (e.g. spotless.gradle). If a relative path is provided, the plugin searches hierarchically upwards from the file being formatted.").enabledIf(useSpotlessConfigCheckBox!!.selected).component
                 }
             }
 

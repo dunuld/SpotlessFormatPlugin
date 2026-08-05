@@ -18,16 +18,37 @@ class SpotlessRunner(private val project: Project) {
 
     fun formatFile(virtualFile: VirtualFile) {
         val settings = SpotlessFormatSettings.getInstance(project).state
-        if (!validateSettings(settings, virtualFile)) return
+        val configPath = resolveConfigPath(settings, virtualFile)
+        
+        if (!validateSettings(settings, virtualFile, configPath)) return
 
         val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return
         val document = PsiDocumentManager.getInstance(project).getDocument(psiFile) ?: return
 
         if (settings.useSpotlessConfig) {
-            applySpotlessConfig(virtualFile, settings.spotlessConfigPath)
+            applySpotlessConfig(virtualFile, configPath ?: settings.spotlessConfigPath)
         } else {
             applyLegacyFormat(virtualFile, settings)
         }
+    }
+
+    private fun resolveConfigPath(settings: SpotlessFormatSettings.State, virtualFile: VirtualFile): String? {
+        if (!settings.useSpotlessConfig || settings.spotlessConfigPath.isBlank()) return null
+        
+        val configFile = File(settings.spotlessConfigPath)
+        if (configFile.isAbsolute) return settings.spotlessConfigPath
+        
+        // Hierarchische Suche
+        var currentDir = virtualFile.parent
+        while (currentDir != null) {
+            val fileInDir = File(currentDir.path, settings.spotlessConfigPath)
+            if (fileInDir.exists()) {
+                return fileInDir.absolutePath
+            }
+            currentDir = currentDir.parent
+        }
+        
+        return null
     }
 
     private fun applyLegacyFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
@@ -51,16 +72,18 @@ class SpotlessRunner(private val project: Project) {
         applyLegacyFormat(virtualFile, SpotlessFormatSettings.getInstance(project).state)
     }
 
-    private fun validateSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile): Boolean {
+    private fun validateSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile, resolvedConfigPath: String?): Boolean {
         if (state.useSpotlessConfig) {
             val configPath = state.spotlessConfigPath
             if (configPath.isBlank()) {
                 notifyError("Spotless configuration path is not configured.")
                 return false
             }
-            val configFile = File(configPath)
+            
+            val finalConfigPath = resolvedConfigPath ?: configPath
+            val configFile = File(finalConfigPath)
             if (!configFile.exists()) {
-                notifyError("Spotless configuration file not found at: $configPath")
+                notifyError("Spotless configuration file not found at: $finalConfigPath")
                 return false
             }
             return true

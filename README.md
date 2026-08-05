@@ -48,6 +48,8 @@ Navigate to **Settings** > **Other Settings** > **Spotless Formatter** (or searc
 ### Generic Spotless Mode
 - **Use generic Spotless configuration file**: Enable this to use a custom Spotless configuration.
 - **Spotless Config**: Path to your `spotless.gradle`, `spotless.xml` or other supported configuration file.
+  - **Hierarchical Search**: If you enter a relative path (e.g., `spotless.gradle`), the plugin will search for this file starting from the directory of the file being formatted and then upwards through parent directories. This is useful for multi-module projects with different Spotless configurations.
+  - If an absolute path is provided, it will be used directly.
 
 ### General Settings
 - **Supported Extensions**: Comma-separated list of file extensions that should be formatted (e.g., `java,xml`).
