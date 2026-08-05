@@ -2,7 +2,6 @@ package de.spotlessformatplugin.services
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 

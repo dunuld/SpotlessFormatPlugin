@@ -22,13 +22,10 @@ class SpotlessRunner(private val project: Project) {
         
         if (!validateSettings(settings, virtualFile, configPath)) return
 
-        val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return
-        val document = PsiDocumentManager.getInstance(project).getDocument(psiFile) ?: return
-
         if (settings.useSpotlessConfig) {
             applySpotlessConfig(virtualFile, configPath ?: settings.spotlessConfigPath)
         } else {
-            applyLegacyFormat(virtualFile, settings)
+            applyLegacyFormat(virtualFile)
         }
     }
 
@@ -51,7 +48,7 @@ class SpotlessRunner(private val project: Project) {
         return null
     }
 
-    private fun applyLegacyFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
+    private fun applyLegacyFormat(virtualFile: VirtualFile) {
         val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return
         WriteCommandAction.runWriteCommandAction(project) {
             CodeStyleManager.getInstance(project).reformat(psiFile)
@@ -69,7 +66,7 @@ class SpotlessRunner(private val project: Project) {
         notifyInfo("Using Spotless config: $configPath")
         
         // Aktuell nutzen wir weiterhin den IntelliJ-Formatter als Fallback
-        applyLegacyFormat(virtualFile, SpotlessFormatSettings.getInstance(project).state)
+        applyLegacyFormat(virtualFile)
     }
 
     private fun validateSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile, resolvedConfigPath: String?): Boolean {
