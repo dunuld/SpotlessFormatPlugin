@@ -39,7 +39,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
 
             group("Formatter Selection") {
                 row("Formatter Type:") {
-                    formatterTypeComboBox = comboBox(SpotlessFormatSettings.FormatterType.values().toList())
+                    formatterTypeComboBox = comboBox(SpotlessFormatSettings.FormatterType.entries)
                         .enabledIf(useSpotlessConfigCheckBox!!.selected.not())
                         .component
                 }
@@ -49,7 +49,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                 row("Formatter XML:") {
                     formatterXmlField = textFieldWithBrowseButton(
                         project = project,
-                        fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("xml").withTitle("Select Formatter XML")
+                        fileChooserDescriptor = FileChooserDescriptorFactory.singleFile().withExtensionFilter("xml").withTitle("Select Formatter XML")
                     ).comment("Eclipse Formatter XML used for Java and XML files").validationOnInput {
                         if (it.text.isNotEmpty() && !File(it.text).exists()) {
                             error("File does not exist")
@@ -60,7 +60,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                 row("Import Order File:") {
                     importOrderField = textFieldWithBrowseButton(
                         project = project,
-                        fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor().withTitle("Select Import Order File")
+                        fileChooserDescriptor = FileChooserDescriptorFactory.singleFile().withTitle("Select Import Order File")
                     ).validationOnInput {
                         if (it.text.isNotEmpty() && !File(it.text).exists()) {
                             error("File does not exist")
@@ -74,7 +74,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                 row("Prettier Config:") {
                     prettierConfigField = textFieldWithBrowseButton(
                         project = project,
-                        fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor().withTitle("Select Prettier Config")
+                        fileChooserDescriptor = FileChooserDescriptorFactory.singleFile().withTitle("Select Prettier Config")
                     ).comment("Path to .prettierrc or prettier.config.js")
                         .enabledIf(useSpotlessConfigCheckBox!!.selected.not())
                         .component
@@ -94,7 +94,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                 row("Spotless Config:") {
                     spotlessConfigField = textFieldWithBrowseButton(
                         project = project,
-                        fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor().withTitle("Select Spotless Configuration File")
+                        fileChooserDescriptor = FileChooserDescriptorFactory.singleFile().withTitle("Select Spotless Configuration File")
                     ).comment("Path to a generic Spotless configuration file (e.g. spotless.gradle). If a relative path is provided, the plugin searches hierarchically upwards from the file being formatted.").enabledIf(useSpotlessConfigCheckBox!!.selected).component
                 }
             }
