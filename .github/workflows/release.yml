@@ -23,11 +23,11 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/distributions/gerrit-intellij-plugin-*.zip
+          files: build/distributions/spotless-format-plugin-*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish Plugin
         run: ./gradlew publishPlugin
         env:
-          IJ_REPO_TOKEN: ${{ secrets.IJ_REPO_TOKEN }}
+          IJ_REPO_TOKEN: ${{ secrets.JETBRAINS_TOKEN }}
