@@ -1,10 +1,10 @@
 # SpotlessFormatPlugin
 
-SpotlessFormatPlugin is an IntelliJ IDEA plugin that integrates [Spotless](https://github.com/diffplug/spotless) logic to format files using Eclipse Formatter XML and Import Order files, or a generic Spotless configuration. It provides an automated on-save action to keep your codebase consistent with your formatting rules.
+SpotlessFormatPlugin is an IntelliJ IDEA plugin that integrates [Spotless](https://github.com/diffplug/spotless) logic to format files using Formatter XML and Import Order files, or a generic Spotless configuration. It provides an automated on-save action to keep your codebase consistent with your formatting rules.
 
 ## Overview
 
-This plugin bridges the gap between Spotless's powerful formatting capabilities and the IntelliJ IDEA environment. It allows developers to enforce consistent formatting across their team by utilizing shared Eclipse XML formatter configurations and Java import order files, or by using a generic Spotless configuration (e.g., `spotless.gradle`).
+This plugin bridges the gap between Spotless's powerful formatting capabilities and the IntelliJ IDEA environment. It allows developers to enforce consistent formatting across their team by using shared XML formatter configurations and Java import order files, or by using a generic Spotless configuration (e.g., `spotless.gradle`).
 
 ## Features
 
@@ -116,7 +116,7 @@ Tests are located in `src/test/kotlin`. The project uses **JUnit 5** with suppor
 
 ## License
 
-Copyright (c) 2026 kroeppelt. Distributed under the Apache 2.0 License. See `LICENSE` for details.
+Copyright © 2026 kroeppelt. Distributed under the Apache 2.0 License. See `LICENSE` for details.
 
 ---
 
