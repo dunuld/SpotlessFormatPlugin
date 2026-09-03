@@ -29,7 +29,7 @@ dependencies {
         bundledPlugin("com.intellij.java")
     }
 
-    implementation("com.diffplug.spotless:spotless-lib:2.45.0")
+    implementation("com.diffplug.spotless:spotless-lib:4.10.1")
 }
 
 tasks.test {
