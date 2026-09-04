@@ -32,6 +32,18 @@ dependencies {
     implementation("com.diffplug.spotless:spotless-lib:4.10.1")
 }
 
+intellijPlatform {
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+
+    publishing {
+        token = providers.environmentVariable("JETBRAINS_TOKEN")
+    }
+}
+
 tasks.test {
     useJUnitPlatform()
 }
