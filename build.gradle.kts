@@ -18,19 +18,20 @@ repositories {
 }
 
 dependencies {
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.platform.launcher)
-    testImplementation(libs.junit.v4)
-    testRuntimeOnly(libs.junit.vintage.engine)
-
     intellijPlatform {
         intellijIdea("2025.3.5")
         testFramework(TestFrameworkType.Platform)
         bundledPlugin("com.intellij.java")
     }
 
-    implementation("com.diffplug.spotless:spotless-lib:4.10.2")
-    implementation("com.google.googlejavaformat:google-java-format:1.24.0")
+    implementation(libs.spotless.lib)
+    implementation(libs.google.java.format)
+
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.junit.v4)
+
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testRuntimeOnly(libs.junit.vintage.engine)
 }
 
 intellijPlatform {
