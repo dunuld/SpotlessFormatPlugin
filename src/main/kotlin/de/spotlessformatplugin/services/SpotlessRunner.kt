@@ -1,29 +1,35 @@
 package de.spotlessformatplugin.services
 
-import com.intellij.codeInsight.actions.OptimizeImportsProcessor
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.util.ProgressWindow
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiManager
-import com.intellij.psi.codeStyle.CodeStyleManager
+import de.spotlessformatplugin.services.formatters.EclipseFormatter
+import de.spotlessformatplugin.services.formatters.GoogleJavaFormatFormatter
+import de.spotlessformatplugin.services.formatters.PrettierFormatter
+import de.spotlessformatplugin.services.formatters.SpotlessConfigFormatter
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
-import java.io.File
 
 @Service(Service.Level.PROJECT)
 class SpotlessRunner(private val project: Project) {
 
+    private val notifier = SpotlessNotifier(project)
+    private val documentTextService = DocumentTextService(project)
+    private val configResolver = SpotlessConfigResolver()
+    private val validator = SpotlessSettingsValidator(notifier)
+    private val eclipseFormatter = EclipseFormatter(project, notifier)
+    private val prettierFormatter = PrettierFormatter(project, documentTextService, notifier)
+    private val googleJavaFormatFormatter = GoogleJavaFormatFormatter(documentTextService, notifier)
+    private val spotlessConfigFormatter = SpotlessConfigFormatter(documentTextService, notifier)
+
     fun formatFile(virtualFile: VirtualFile) {
         val settings = SpotlessFormatSettings.getInstance(project).state
-        val configPath = resolveConfigPath(settings, virtualFile)
-        
-        if (!validateSettings(settings, virtualFile, configPath)) return
+        val configPath = configResolver.resolveConfigPath(settings, virtualFile)
+
+        if (!validator.validate(settings, virtualFile, configPath)) return
 
         val application = ApplicationManager.getApplication()
         if (application.isUnitTestMode) {
@@ -34,7 +40,7 @@ class SpotlessRunner(private val project: Project) {
         val progressWindow = ProgressWindow(true, false, project)
         progressWindow.title = "Formatting with Spotless"
         progressWindow.setDelayInMillis(500)
-        
+
         application.executeOnPooledThread {
             ProgressManager.getInstance().runProcess({
                 performFormat(virtualFile, settings, configPath, ProgressManager.getInstance().progressIndicator)
@@ -42,179 +48,23 @@ class SpotlessRunner(private val project: Project) {
         }
     }
 
-    private fun performFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State, configPath: String?, indicator: ProgressIndicator?) {
+    private fun performFormat(
+        virtualFile: VirtualFile,
+        settings: SpotlessFormatSettings.State,
+        configPath: String?,
+        indicator: ProgressIndicator?
+    ) {
         indicator?.isIndeterminate = true
         indicator?.text = "Formatting ${virtualFile.name}..."
-        
+
         if (settings.useSpotlessConfig) {
-            applySpotlessConfig(virtualFile, configPath ?: settings.spotlessConfigPath)
+            spotlessConfigFormatter.format(virtualFile, configPath ?: settings.spotlessConfigPath)
         } else {
             when (settings.formatterType) {
-                SpotlessFormatSettings.FormatterType.ECLIPSE -> applyEclipseFormat(virtualFile, settings)
-                SpotlessFormatSettings.FormatterType.PRETTIER -> applyPrettierFormat(virtualFile, settings)
-                SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT -> applyGoogleJavaFormat(virtualFile, settings)
+                SpotlessFormatSettings.FormatterType.ECLIPSE -> eclipseFormatter.format(virtualFile, settings)
+                SpotlessFormatSettings.FormatterType.PRETTIER -> prettierFormatter.format(virtualFile, settings)
+                SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT -> googleJavaFormatFormatter.format(virtualFile, settings)
             }
         }
-    }
-
-    private fun resolveConfigPath(settings: SpotlessFormatSettings.State, virtualFile: VirtualFile): String? {
-        if (!settings.useSpotlessConfig || settings.spotlessConfigPath.isBlank()) return null
-        
-        val configFile = File(settings.spotlessConfigPath)
-        if (configFile.isAbsolute) return settings.spotlessConfigPath
-        
-        // Hierarchische Suche
-        var currentDir = virtualFile.parent
-        while (currentDir != null) {
-            val fileInDir = File(currentDir.path, settings.spotlessConfigPath)
-            if (fileInDir.exists()) {
-                return fileInDir.absolutePath
-            }
-            currentDir = currentDir.parent
-        }
-        
-        return null
-    }
-
-    private fun applyEclipseFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
-        notifyInfo("Applying Eclipse Formatter using: ${settings.formatterXmlPath}")
-        // Currently we use the IntelliJ-Formatter as Fallback/Mock
-        applyLegacyFormat(virtualFile)
-    }
-
-    private fun applyPrettierFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
-        notifyInfo("Applying Prettier using config: ${settings.prettierConfigPath}")
-        // Currently we use the IntelliJ-Formatter as Fallback/Mock
-        applyLegacyFormat(virtualFile)
-    }
-
-    private fun applyGoogleJavaFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
-        notifyInfo("Applying Google Java Format version: ${settings.gjfVersion}")
-        // Currently we use the IntelliJ-Formatter as Fallback/Mock
-        applyLegacyFormat(virtualFile)
-    }
-
-    private fun applyLegacyFormat(virtualFile: VirtualFile) {
-        val application = ApplicationManager.getApplication()
-        val runnable = Runnable {
-            val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return@Runnable
-            WriteCommandAction.runWriteCommandAction(project, "Spotless Formatting", null, {
-                CodeStyleManager.getInstance(project).reformat(psiFile)
-                if (virtualFile.extension.equals("java", ignoreCase = true)) {
-                    OptimizeImportsProcessor(project, psiFile).run()
-                }
-            })
-        }
-
-        if (application.isDispatchThread) {
-            runnable.run()
-        } else {
-            application.invokeAndWait(runnable)
-        }
-    }
-
-    private fun applySpotlessConfig(virtualFile: VirtualFile, configPath: String) {
-        // Für eine echte Spotless-Unterstützung beliebiger Konfigurationen müsste hier
-        // ein Spotless-Formatter dynamisch aufgebaut werden.
-        // Da die vollständige Implementierung eines Spotless-Parsers den Rahmen sprengt,
-        // wird hier die Konfiguration geladen und eine entsprechende Meldung ausgegeben.
-        notifyInfo("Using Spotless config: $configPath")
-        
-        // Aktuell nutzen wir weiterhin den IntelliJ-Formatter als Fallback
-        applyLegacyFormat(virtualFile)
-    }
-
-    private fun validateSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile, resolvedConfigPath: String?): Boolean {
-        if (state.useSpotlessConfig) {
-            val configPath = state.spotlessConfigPath
-            if (configPath.isBlank()) {
-                notifyError("Spotless configuration path is not configured.")
-                return false
-            }
-            
-            val finalConfigPath = resolvedConfigPath ?: configPath
-            val configFile = File(finalConfigPath)
-            if (!configFile.exists()) {
-                notifyError("Spotless configuration file not found at: $finalConfigPath")
-                return false
-            }
-            return true
-        }
-
-        return when (state.formatterType) {
-            SpotlessFormatSettings.FormatterType.ECLIPSE -> validateEclipseSettings(state, virtualFile)
-            SpotlessFormatSettings.FormatterType.PRETTIER -> validatePrettierSettings(state)
-            SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT -> validateGoogleJavaFormatSettings(state)
-        }
-    }
-
-    private fun validateEclipseSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile): Boolean {
-        val extension = virtualFile.extension
-        val formatterPath = state.formatterXmlPath
-        val importOrderPath = state.importOrderPath
-
-        if (formatterPath.isBlank()) {
-            notifyError("Eclipse Formatter XML path is not configured.")
-            return false
-        }
-        val formatterFile = File(formatterPath)
-        if (!formatterFile.exists()) {
-            notifyError("Eclipse Formatter XML not found at: $formatterPath")
-            return false
-        }
-        if (!formatterFile.canRead()) {
-            notifyError("Eclipse Formatter XML is not readable at: $formatterPath")
-            return false
-        }
-
-        if (extension.equals("java", ignoreCase = true)) {
-            if (importOrderPath.isBlank()) {
-                notifyError("Import Order file path is not configured.")
-                return false
-            }
-            val importOrderFile = File(importOrderPath)
-            if (!importOrderFile.exists()) {
-                notifyError("Import Order file not found at: $importOrderPath")
-                return false
-            }
-            if (!importOrderFile.canRead()) {
-                notifyError("Import Order file is not readable at: $importOrderPath")
-                return false
-            }
-        }
-        return true
-    }
-
-    private fun validatePrettierSettings(state: SpotlessFormatSettings.State): Boolean {
-        if (state.prettierConfigPath.isNotBlank()) {
-            val configFile = File(state.prettierConfigPath)
-            if (!configFile.exists()) {
-                notifyError("Prettier configuration file not found at: ${state.prettierConfigPath}")
-                return false
-            }
-        }
-        return true
-    }
-
-    private fun validateGoogleJavaFormatSettings(state: SpotlessFormatSettings.State): Boolean {
-        if (state.gjfVersion.isBlank()) {
-            notifyError("Google Java Format version is not configured.")
-            return false
-        }
-        return true
-    }
-
-    private fun notifyError(content: String) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Spotless Formatter")
-            .createNotification("Spotless Configuration Error", content, NotificationType.ERROR)
-            .notify(project)
-    }
-
-    private fun notifyInfo(content: String) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Spotless Formatter")
-            .createNotification("Spotless Formatter", content, NotificationType.INFORMATION)
-            .notify(project)
     }
 }

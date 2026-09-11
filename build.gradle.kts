@@ -18,18 +18,20 @@ repositories {
 }
 
 dependencies {
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.platform.launcher)
-    testImplementation(libs.junit.v4)
-    testRuntimeOnly(libs.junit.vintage.engine)
-
     intellijPlatform {
         intellijIdea("2025.3.5")
         testFramework(TestFrameworkType.Platform)
         bundledPlugin("com.intellij.java")
     }
 
-    implementation("com.diffplug.spotless:spotless-lib:4.10.2")
+    implementation(libs.spotless.lib)
+    implementation(libs.google.java.format)
+
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.junit.v4)
+
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testRuntimeOnly(libs.junit.vintage.engine)
 }
 
 intellijPlatform {
@@ -46,4 +48,15 @@ intellijPlatform {
 
 tasks.test {
     useJUnitPlatform()
+    jvmArgs(
+        "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED"
+    )
+    // Ensure resources are included
+    dependsOn("processTestResources")
 }
