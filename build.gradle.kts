@@ -29,7 +29,7 @@ dependencies {
         bundledPlugin("com.intellij.java")
     }
 
-    implementation("com.diffplug.spotless:spotless-lib:4.10.1")
+    implementation("com.diffplug.spotless:spotless-lib:4.10.2")
     implementation("com.google.googlejavaformat:google-java-format:1.24.0")
 }
 

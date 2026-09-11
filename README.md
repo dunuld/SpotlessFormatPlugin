@@ -1,3 +1,7 @@
+![Version](https://img.shields.io/jetbrains/plugin/v/:34092)
+![Build](https://github.com/dunuld/SpotlessFormatPlugin/actions/workflows/gradle.yml/badge.svg)
+![Build](https://github.com/dunuld/SpotlessFormatPlugin/actions/workflows/qodana_code_quality.yml/badge.svg)
+
 # SpotlessFormatPlugin
 
 ## Overview
