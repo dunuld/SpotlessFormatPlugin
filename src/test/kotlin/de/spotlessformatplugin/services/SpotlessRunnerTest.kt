@@ -399,6 +399,58 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
         assertTrue(psiFile.text.contains("public class Test"))
     }
 
+    fun testSpotlessConfigActuallyFormats() {
+        val tempDir = myFixture.tempDirFixture.tempDirPath
+        val configFile = java.io.File(tempDir, "spotless.gradle")
+        configFile.createNewFile()
+
+        val settings = SpotlessFormatSettings.getInstance(project)
+        settings.state.useSpotlessConfig = true
+        settings.state.spotlessConfigPath = configFile.absolutePath
+
+        val before = "public class Test {   \n    int a = 1;   \n}"
+        val psiFile = myFixture.configureByText("Test.java", before)
+        spotlessRunner.formatFile(psiFile.virtualFile)
+
+        val expected = "public class Test {\n    int a = 1;\n}\n"
+        assertEquals(expected, psiFile.text)
+    }
+
+    fun testSpotlessConfigWithImportOrder() {
+        val tempDir = myFixture.tempDirFixture.tempDirPath
+        val importOrderFile = java.io.File(tempDir, "custom.importorder")
+        importOrderFile.writeText("0=java\n1=javax\n2=org\n3=com\n")
+
+        val settings = SpotlessFormatSettings.getInstance(project)
+        settings.state.useSpotlessConfig = true
+        settings.state.spotlessConfigPath = importOrderFile.absolutePath
+
+        val before = """
+            import org.junit.Test;
+            import java.util.List;
+
+            public class Test {
+                List<String> list;
+            }
+        """.trimIndent()
+
+        val psiFile = myFixture.configureByText("Test.java", before)
+        spotlessRunner.formatFile(psiFile.virtualFile)
+
+        val expected = """
+            import java.util.List;
+
+            import org.junit.Test;
+
+            public class Test {
+                List<String> list;
+            }
+            
+        """.trimIndent()
+
+        assertEquals(expected, psiFile.text)
+    }
+
     fun testSpotlessConfigMissing() {
         val settings = SpotlessFormatSettings.getInstance(project)
         settings.state.useSpotlessConfig = true

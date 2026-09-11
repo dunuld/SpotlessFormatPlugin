@@ -1,5 +1,11 @@
 package de.spotlessformatplugin.services
 
+import com.diffplug.spotless.Formatter as SpotlessFormatter
+import com.diffplug.spotless.FormatterStep
+import com.diffplug.spotless.LineEnding
+import com.diffplug.spotless.generic.EndWithNewlineStep
+import com.diffplug.spotless.generic.TrimTrailingWhitespaceStep
+import com.diffplug.spotless.java.ImportOrderStep
 import com.google.googlejavaformat.java.Formatter
 import com.google.googlejavaformat.java.FormatterException
 import com.intellij.codeInsight.actions.OptimizeImportsProcessor
@@ -309,14 +315,33 @@ class SpotlessRunner(private val project: Project) {
     }
 
     private fun applySpotlessConfig(virtualFile: VirtualFile, configPath: String) {
-        // Für eine echte Spotless-Unterstützung beliebiger Konfigurationen müsste hier
-        // ein Spotless-Formatter dynamisch aufgebaut werden.
-        // Da die vollständige Implementierung eines Spotless-Parsers den Rahmen sprengt,
-        // wird hier die Konfiguration geladen und eine entsprechende Meldung ausgegeben.
-        notifyInfo("Using Spotless config: $configPath")
-        
-        // Aktuell nutzen wir weiterhin den IntelliJ-Formatter als Fallback
-        applyLegacyFormat(virtualFile)
+        val text = getFileText(virtualFile) ?: return
+        try {
+            val steps = mutableListOf<FormatterStep>()
+            val configFile = File(configPath)
+            val extension = virtualFile.extension ?: ""
+
+            steps.add(TrimTrailingWhitespaceStep.create())
+            steps.add(EndWithNewlineStep.create())
+
+            if (extension.equals("java", ignoreCase = true) && configFile.exists()) {
+                if (configPath.endsWith(".order") || configPath.endsWith(".importorder")) {
+                    steps.add(ImportOrderStep.forJava().createFrom(configFile))
+                }
+            }
+
+            val formatter = SpotlessFormatter.builder()
+                .lineEndingsPolicy(LineEnding.PLATFORM_NATIVE.createPolicy())
+                .encoding(Charsets.UTF_8)
+                .steps(steps)
+                .build()
+
+            val formatted = formatter.compute(text, File(virtualFile.path))
+            updateDocumentText(virtualFile, formatted, "Spotless Formatting")
+            notifyInfo("Using Spotless config: $configPath")
+        } catch (e: Exception) {
+            notifyError("Spotless formatting failed for ${virtualFile.name}: ${e.message}")
+        }
     }
 
     private fun validateSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile, resolvedConfigPath: String?): Boolean {
