@@ -31,18 +31,22 @@ class SpotlessConfigResolverTest : BasePlatformTestCase() {
     }
 
     fun testResolveConfigPathAbsolute() {
-        val tempDir = myFixture.tempDirFixture.tempDirPath
-        val configFile = File(tempDir, "abs-spotless.xml")
-        configFile.createNewFile()
+        val tempDir = java.nio.file.Files.createTempDirectory("spotlessTest").toFile()
+        try {
+            val configFile = File(tempDir, "abs-spotless.xml")
+            configFile.createNewFile()
 
-        val settings = SpotlessFormatSettings.State()
-        settings.useSpotlessConfig = true
-        settings.spotlessConfigPath = configFile.absolutePath
+            val settings = SpotlessFormatSettings.State()
+            settings.useSpotlessConfig = true
+            settings.spotlessConfigPath = configFile.absolutePath
 
-        val psiFile = myFixture.configureByText("Test.java", "class Test {}")
-        val resolved = resolver.resolveConfigPath(settings, psiFile.virtualFile)
+            val psiFile = myFixture.configureByText("Test.java", "class Test {}")
+            val resolved = resolver.resolveConfigPath(settings, psiFile.virtualFile)
 
-        assertEquals(configFile.absolutePath, resolved)
+            assertEquals(configFile.absolutePath, resolved)
+        } finally {
+            tempDir.deleteRecursively()
+        }
     }
 
     fun testResolveConfigPathHierarchical() {

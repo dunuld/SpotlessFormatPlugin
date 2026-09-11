@@ -8,15 +8,24 @@ import java.io.File
 class EclipseFormatterTest : BasePlatformTestCase() {
 
     private lateinit var eclipseFormatter: EclipseFormatter
+    private lateinit var tempDir: File
 
     override fun setUp() {
         super.setUp()
+        tempDir = java.nio.file.Files.createTempDirectory("spotlessTest").toFile()
         val notifier = SpotlessNotifier(project)
         eclipseFormatter = EclipseFormatter(project, notifier)
     }
 
+    override fun tearDown() {
+        try {
+            tempDir.deleteRecursively()
+        } finally {
+            super.tearDown()
+        }
+    }
+
     fun testFormatJavaFile() {
-        val tempDir = myFixture.tempDirFixture.tempDirPath
         val formatterFile = File(tempDir, "formatter.xml")
         formatterFile.createNewFile()
         val importOrderFile = File(tempDir, "import.order")
@@ -49,7 +58,6 @@ class EclipseFormatterTest : BasePlatformTestCase() {
     }
 
     fun testOptimizeImportsDoesNotCrash() {
-        val tempDir = myFixture.tempDirFixture.tempDirPath
         val formatterFile = File(tempDir, "formatter.xml")
         formatterFile.createNewFile()
         val importOrderFile = File(tempDir, "import.order")

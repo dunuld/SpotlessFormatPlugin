@@ -7,11 +7,21 @@ import java.io.File
 class SpotlessSettingsValidatorTest : BasePlatformTestCase() {
 
     private lateinit var validator: SpotlessSettingsValidator
+    private lateinit var tempDir: File
 
     override fun setUp() {
         super.setUp()
+        tempDir = java.nio.file.Files.createTempDirectory("spotlessTest").toFile()
         val notifier = SpotlessNotifier(project)
         validator = SpotlessSettingsValidator(notifier)
+    }
+
+    override fun tearDown() {
+        try {
+            tempDir.deleteRecursively()
+        } finally {
+            super.tearDown()
+        }
     }
 
     fun testValidateSpotlessConfigEmpty() {
@@ -33,7 +43,6 @@ class SpotlessSettingsValidatorTest : BasePlatformTestCase() {
     }
 
     fun testValidateSpotlessConfigFileExists() {
-        val tempDir = myFixture.tempDirFixture.tempDirPath
         val configFile = File(tempDir, "spotless.gradle")
         configFile.createNewFile()
 
@@ -66,7 +75,6 @@ class SpotlessSettingsValidatorTest : BasePlatformTestCase() {
     }
 
     fun testValidateEclipseFormatterJavaMissingImportOrder() {
-        val tempDir = myFixture.tempDirFixture.tempDirPath
         val formatterFile = File(tempDir, "formatter.xml")
         formatterFile.createNewFile()
 
@@ -81,7 +89,6 @@ class SpotlessSettingsValidatorTest : BasePlatformTestCase() {
     }
 
     fun testValidateEclipseFormatterXmlIgnoresImportOrder() {
-        val tempDir = myFixture.tempDirFixture.tempDirPath
         val formatterFile = File(tempDir, "formatter.xml")
         formatterFile.createNewFile()
 

@@ -8,16 +8,25 @@ import java.io.File
 class SpotlessConfigFormatterTest : BasePlatformTestCase() {
 
     private lateinit var spotlessConfigFormatter: SpotlessConfigFormatter
+    private lateinit var tempDir: File
 
     override fun setUp() {
         super.setUp()
+        tempDir = java.nio.file.Files.createTempDirectory("spotlessTest").toFile()
         val notifier = SpotlessNotifier(project)
         val documentTextService = DocumentTextService(project)
         spotlessConfigFormatter = SpotlessConfigFormatter(documentTextService, notifier)
     }
 
+    override fun tearDown() {
+        try {
+            tempDir.deleteRecursively()
+        } finally {
+            super.tearDown()
+        }
+    }
+
     fun testSpotlessConfigActuallyFormatsTrailingWhitespaceAndIndent() {
-        val tempDir = myFixture.tempDirFixture.tempDirPath
         val configFile = File(tempDir, "spotless.gradle")
         configFile.createNewFile()
 
@@ -31,7 +40,6 @@ class SpotlessConfigFormatterTest : BasePlatformTestCase() {
     }
 
     fun testSpotlessConfigWithImportOrder() {
-        val tempDir = myFixture.tempDirFixture.tempDirPath
         val importOrderFile = File(tempDir, "custom.importorder")
         importOrderFile.writeText("0=java\n1=javax\n2=org\n3=com\n")
 
