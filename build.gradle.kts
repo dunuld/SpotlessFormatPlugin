@@ -56,4 +56,6 @@ tasks.test {
         "--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
         "--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED"
     )
+    // Ensure resources are included
+    dependsOn("processTestResources")
 }
