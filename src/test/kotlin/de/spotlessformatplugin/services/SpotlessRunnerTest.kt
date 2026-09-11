@@ -144,8 +144,21 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
         
         spotlessRunner.formatFile(psiFile.virtualFile)
         
-        // Ensure it doesn't crash and formats
-        assertTrue(psiFile.text.contains("public void test()"))
+        val expected = "public class Test {\n  public void test() {}\n}\n"
+        assertEquals(expected, psiFile.text)
+    }
+
+    fun testFormatNonJavaWithGoogleJavaFormatSkipped() {
+        val settings = SpotlessFormatSettings.getInstance(project)
+        settings.state.formatterType = SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT
+        settings.state.gjfVersion = "1.17.0"
+
+        val before = "const a = 1;"
+        val psiFile = myFixture.configureByText("test.js", before)
+
+        spotlessRunner.formatFile(psiFile.virtualFile)
+
+        assertEquals(before, psiFile.text)
     }
 
     fun testPrettierConfigMissing() {

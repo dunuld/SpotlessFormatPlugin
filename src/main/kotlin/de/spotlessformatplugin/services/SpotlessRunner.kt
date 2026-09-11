@@ -1,5 +1,7 @@
 package de.spotlessformatplugin.services
 
+import com.google.googlejavaformat.java.Formatter
+import com.google.googlejavaformat.java.FormatterException
 import com.intellij.codeInsight.actions.OptimizeImportsProcessor
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -11,10 +13,13 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.util.ProgressWindow
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
 import com.intellij.psi.codeStyle.CodeStyleManager
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 import java.io.File
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 @Service(Service.Level.PROJECT)
 class SpotlessRunner(private val project: Project) {
@@ -83,15 +88,205 @@ class SpotlessRunner(private val project: Project) {
     }
 
     private fun applyPrettierFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
-        notifyInfo("Applying Prettier using config: ${settings.prettierConfigPath}")
-        // Currently we use the IntelliJ-Formatter as Fallback/Mock
-        applyLegacyFormat(virtualFile)
+        val text = getFileText(virtualFile) ?: return
+        val formatted = runPrettier(virtualFile, text, settings.prettierConfigPath)
+        if (formatted != null) {
+            updateDocumentText(virtualFile, formatted, "Prettier Formatting")
+            notifyInfo("Applying Prettier using config: ${settings.prettierConfigPath}")
+        }
     }
 
     private fun applyGoogleJavaFormat(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
-        notifyInfo("Applying Google Java Format version: ${settings.gjfVersion}")
-        // Currently we use the IntelliJ-Formatter as Fallback/Mock
-        applyLegacyFormat(virtualFile)
+        val extension = virtualFile.extension ?: ""
+        if (!extension.equals("java", ignoreCase = true)) {
+            notifyInfo("Google Java Format only applies to Java files. Skipping ${virtualFile.name}.")
+            return
+        }
+
+        val text = getFileText(virtualFile) ?: return
+        try {
+            val formatter = Formatter()
+            val formatted = formatter.formatSource(text)
+            updateDocumentText(virtualFile, formatted, "Google Java Format")
+            notifyInfo("Applying Google Java Format version: ${settings.gjfVersion}")
+        } catch (e: FormatterException) {
+            notifyError("Google Java Format error in ${virtualFile.name}: ${e.message}")
+        } catch (t: Throwable) {
+            notifyError("Failed to format ${virtualFile.name} with Google Java Format: ${t.message}")
+        }
+    }
+
+    private fun getFileText(virtualFile: VirtualFile): String? {
+        val application = ApplicationManager.getApplication()
+        var text: String? = null
+        val runnable = Runnable {
+            val psiFile = PsiManager.getInstance(project).findFile(virtualFile)
+            val document = psiFile?.let { PsiDocumentManager.getInstance(project).getDocument(it) }
+            text = document?.text ?: psiFile?.text ?: String(virtualFile.contentsToByteArray(), virtualFile.charset)
+        }
+        if (application.isDispatchThread) {
+            runnable.run()
+        } else {
+            application.invokeAndWait(runnable)
+        }
+        return text
+    }
+
+    private fun updateDocumentText(virtualFile: VirtualFile, newText: String, commandName: String) {
+        val application = ApplicationManager.getApplication()
+        val runnable = Runnable {
+            val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return@Runnable
+            val document = PsiDocumentManager.getInstance(project).getDocument(psiFile) ?: return@Runnable
+            if (document.text != newText) {
+                WriteCommandAction.runWriteCommandAction(project, commandName, null, {
+                    document.setText(newText)
+                    PsiDocumentManager.getInstance(project).commitDocument(document)
+                })
+            }
+        }
+
+        if (application.isDispatchThread) {
+            runnable.run()
+        } else {
+            application.invokeAndWait(runnable)
+        }
+    }
+
+    private data class PrettierExecutable(
+        val command: List<String>,
+        val nodeBinDir: String? = null
+    )
+
+    private fun findPrettierExecutable(): PrettierExecutable? {
+        val isWindows = System.getProperty("os.name")?.lowercase()?.contains("win") == true
+        val projectBase = project.basePath
+
+        // 1. Check local node_modules in project
+        if (projectBase != null) {
+            val localPrettier = File(projectBase, if (isWindows) "node_modules/.bin/prettier.cmd" else "node_modules/.bin/prettier")
+            if (localPrettier.exists() && (isWindows || localPrettier.canExecute())) {
+                return PrettierExecutable(listOf(localPrettier.absolutePath))
+            }
+        }
+
+        // Candidate directories where node/npx/prettier might reside
+        val candidateNodeDirs = mutableListOf<File>()
+        val pathEnv = System.getenv("PATH") ?: ""
+        pathEnv.split(File.pathSeparator).forEach {
+            if (it.isNotBlank()) candidateNodeDirs.add(File(it))
+        }
+
+        val userHome = System.getProperty("user.home") ?: ""
+        listOf(
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "$userHome/.volta/bin",
+            "$userHome/.asdf/shims",
+            "$userHome/.nodenv/shims"
+        ).forEach { candidateNodeDirs.add(File(it)) }
+
+        // Search nvm versions: ~/.nvm/versions/node/*/bin
+        val nvmNodeDir = File(userHome, ".nvm/versions/node")
+        if (nvmNodeDir.exists() && nvmNodeDir.isDirectory) {
+            nvmNodeDir.listFiles()?.filter { it.isDirectory }?.sortedByDescending { it.name }?.forEach { versionDir ->
+                val binDir = File(versionDir, "bin")
+                if (binDir.exists() && binDir.isDirectory) {
+                    candidateNodeDirs.add(binDir)
+                }
+            }
+        }
+
+        // 2. Search for direct 'prettier' binary in candidate dirs
+        val prettierName = if (isWindows) "prettier.cmd" else "prettier"
+        for (dir in candidateNodeDirs) {
+            val file = File(dir, prettierName)
+            if (file.exists() && (isWindows || file.canExecute())) {
+                return PrettierExecutable(listOf(file.absolutePath), dir.absolutePath)
+            }
+        }
+
+        // 3. Search for 'npx' binary in candidate dirs
+        val npxName = if (isWindows) "npx.cmd" else "npx"
+        for (dir in candidateNodeDirs) {
+            val file = File(dir, npxName)
+            if (file.exists() && (isWindows || file.canExecute())) {
+                return PrettierExecutable(listOf(file.absolutePath, "prettier"), dir.absolutePath)
+            }
+        }
+
+        return null
+    }
+
+    private fun runPrettier(virtualFile: VirtualFile, content: String, configPath: String?): String? {
+        val prettierExec = findPrettierExecutable()
+        if (prettierExec == null) {
+            notifyError("Prettier executable not found. Please ensure prettier or npx is installed.")
+            return null
+        }
+
+        val command = mutableListOf<String>()
+        command.addAll(prettierExec.command)
+        command.add("--stdin-filepath")
+        command.add(virtualFile.name)
+
+        if (!configPath.isNullOrBlank()) {
+            val configFile = File(configPath)
+            if (configFile.exists()) {
+                command.add("--config")
+                command.add(configFile.absolutePath)
+            }
+        }
+
+        val processBuilder = ProcessBuilder(command)
+        val workingDir = project.basePath?.let { File(it) } ?: File(virtualFile.path).parentFile
+        if (workingDir != null && workingDir.exists()) {
+            processBuilder.directory(workingDir)
+        }
+
+        prettierExec.nodeBinDir?.let { nodeDir ->
+            val env = processBuilder.environment()
+            val currentPath = env["PATH"] ?: System.getenv("PATH") ?: ""
+            env["PATH"] = "$nodeDir:$currentPath"
+        }
+
+        return try {
+            val process = processBuilder.start()
+
+            process.outputStream.bufferedWriter(Charsets.UTF_8).use { writer ->
+                writer.write(content)
+                writer.flush()
+            }
+
+            val stdoutFuture = CompletableFuture.supplyAsync {
+                process.inputStream.bufferedReader(Charsets.UTF_8).readText()
+            }
+            val stderrFuture = CompletableFuture.supplyAsync {
+                process.errorStream.bufferedReader(Charsets.UTF_8).readText()
+            }
+
+            val finished = process.waitFor(15, TimeUnit.SECONDS)
+            if (!finished) {
+                process.destroyForcibly()
+                notifyError("Prettier timed out while formatting ${virtualFile.name}.")
+                return null
+            }
+
+            val exitCode = process.exitValue()
+            val stdout = stdoutFuture.get(2, TimeUnit.SECONDS)
+            val stderr = stderrFuture.get(2, TimeUnit.SECONDS)
+
+            if (exitCode == 0) {
+                stdout
+            } else {
+                notifyError("Prettier failed for ${virtualFile.name}: ${stderr.ifBlank { stdout }}")
+                null
+            }
+        } catch (e: Exception) {
+            notifyError("Error executing Prettier: ${e.message}")
+            null
+        }
     }
 
     private fun applyLegacyFormat(virtualFile: VirtualFile) {

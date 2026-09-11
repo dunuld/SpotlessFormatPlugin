@@ -30,6 +30,7 @@ dependencies {
     }
 
     implementation("com.diffplug.spotless:spotless-lib:4.10.1")
+    implementation("com.google.googlejavaformat:google-java-format:1.24.0")
 }
 
 intellijPlatform {
@@ -46,4 +47,13 @@ intellijPlatform {
 
 tasks.test {
     useJUnitPlatform()
+    jvmArgs(
+        "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED"
+    )
 }
