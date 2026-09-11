@@ -6,31 +6,35 @@
 
 ## Overview
 
-This plugin bridges the gap between Spotless's powerful formatting capabilities and the IntelliJ IDEA environment. It allows developers to enforce consistent formatting across their team by using shared XML formatter configurations and Java import order files, or by using a generic Spotless configuration (e.g., `spotless.gradle`).
+**SpotlessFormatPlugin** brings Spotless formatting capabilities directly into the IntelliJ IDEA environment. It enables developers and teams to enforce consistent code styles across their projects using **Eclipse XML formatters**, **Google Java Format**, **Prettier**, or a generic **Spotless configuration** (e.g., `spotless.gradle`, `.importorder`).
 
 ## Features
 
-- **Flexible Configuration**: Use either specific Eclipse Formatter files or a generic Spotless configuration file.
-- **Eclipse Formatter Integration**: Use your existing Eclipse XML formatter configuration via Spotless logic.
-- **Import Ordering**: Apply custom import order rules (Java support).
-- **Format on Save**: Automatically format changed files when saving.
-- **Project-specific Configuration**: Settings are stored per project.
-- **Customizable Extensions**: Configure which file types should be formatted (e.g., `java,xml`).
-- **Hierarchical Config Search**: Support for finding Spotless configuration files by searching up the directory tree.
+- **Multiple Formatter Engines**:
+  - **Eclipse Formatter**: Apply shared Eclipse XML formatter profiles and `.importorder` rules for Java and XML files.
+  - **Google Java Format**: Format Java source code seamlessly with Google Java Format (configurable version).
+  - **Prettier**: Format JavaScript, TypeScript, JSON, and other web/data files using local or global Prettier installations (supporting project `node_modules`, `npx`, NVM, Volta, asdf, nodenv, and Homebrew).
+  - **Generic Spotless Configuration**: Utilize generic Spotless configuration files (e.g., `spotless.gradle`, `.order`, `.importorder`) with automatic whitespace trimming, line-ending standardization, and import reordering.
+- **Hierarchical Config Search**: Automatically discovers configuration files by searching upwards from the file being formatted through its parent directories.
+- **Format on Save**: Automatically reformat modified files upon document saving.
+- **Configurable Supported Extensions**: Easily define which file extensions trigger formatting (default: `java,xml,js,ts,json`).
+- **Project-Specific Settings**: Settings are saved per project (`spotless-format-settings.xml`).
+- **Validation & Error Reporting**: Real-time validation in the settings UI and informative notifications if configuration files or executables are missing.
 
 ## Requirements
 
-- **IntelliJ IDEA**: 2025.3.5 or newer.
-- **JDK**: 17 or 21 (as required by the specified IntelliJ version).
+- **IntelliJ IDEA**: 2025.3 or newer (tested up to 2026.2+).
+- **JDK**: 17 or 21+ (as required by the specified IntelliJ IDEA version).
+- **Node.js & Prettier** *(Optional)*: Required only when using the Prettier formatter engine.
 - **Operating System**: macOS, Windows, or Linux.
 
 ## Setup & Installation
 
 ### Using Pre-built Plugin
-1. Download the plugin distribution (ZIP).
-2. In IntelliJ IDEA, go to `Settings` > `Plugins`.
-3. Click the gear icon and select `Install Plugin from Disk...`.
-4. Select the ZIP file and restart the IDE.
+1. Download the plugin distribution (`.zip`).
+2. In IntelliJ IDEA, open **Settings** (`Cmd+,` on macOS / `Ctrl+Alt+S` on Windows & Linux) > **Plugins**.
+3. Click the gear icon (⚙️) and select **Install Plugin from Disk...**.
+4. Select the downloaded ZIP file and restart the IDE.
 
 ### From Source
 1. Clone the repository:
@@ -42,37 +46,50 @@ This plugin bridges the gap between Spotless's powerful formatting capabilities 
 
 ## Configuration
 
-Navigate to **Settings** > **Other Settings** > **Spotless Formatter** (or search for "Spotless Formatter" in settings).
+Navigate to **Settings** > **Spotless Formatter** (or search for *"Spotless Formatter"* in settings).
 
-### Legacy Mode (Eclipse Formatter)
-- **Formatter XML Path**: Absolute path to your Eclipse formatter XML file.
-- **Import Order Path**: Absolute path to your `.importorder` file (Java only).
+### 1. Generic Spotless Mode
+- **Use generic Spotless configuration file**: Enable this checkbox to use a custom Spotless configuration instead of individual formatter engines.
+- **Spotless Config**: Relative or absolute path to your configuration file (e.g., `spotless.gradle`, `spotless.xml`, `.importorder`).
+  - **Hierarchical Search**: When a relative path is specified, the plugin searches starting from the folder containing the file being formatted and traverses upwards through parent directories.
 
-### Generic Spotless Mode
-- **Use generic Spotless configuration file**: Enable this to use a custom Spotless configuration.
-- **Spotless Config**: Path to your `spotless.gradle`, `spotless.xml`, or other supported configuration file.
-  - **Hierarchical Search**: If you enter a relative path (e.g., `spotless.gradle`), the plugin will search for this file starting from the directory of the file being formatted and then upwards through parent directories.
-  - If an absolute path is provided, it will be used directly.
+### 2. Dedicated Formatter Engines
+When generic mode is disabled, select one of the following engines:
 
-### General Settings
-- **Supported Extensions**: Comma-separated list of file extensions that should be formatted (e.g., `java,xml`).
-- **Execute on Save**: Enable this to trigger formatting automatically when files are saved.
+#### Eclipse Formatter
+- **Formatter XML**: Path to your Eclipse formatter XML configuration file.
+- **Import Order File**: Path to your Java `.importorder` file.
+
+#### Prettier
+- **Prettier Config**: Optional path to a `.prettierrc` or `prettier.config.js` configuration file.
+- Automatically detects Prettier from:
+  - Local project `node_modules/.bin/prettier`
+  - System `PATH`
+  - Node version managers (`~/.nvm`, `~/.volta`, `~/.asdf`, `~/.nodenv`) and Homebrew paths
+  - `npx prettier` fallback
+
+#### Google Java Format
+- **Version**: Google Java Format version (e.g., `1.17.0`). Applies to `.java` files.
+
+### 3. General Settings
+- **Supported Extensions**: Comma-separated list of file extensions to format (e.g., `java,xml,js,ts,json`).
+- **Execute Spotless on save for changed files**: When checked, formats supported files automatically when saving.
 
 ## Development & Scripts
 
-This project uses **Kotlin** and **Gradle (Kotlin DSL)** with the [IntelliJ Platform Gradle Plugin](https://github.com/JetBrains/intellij-platform-gradle-plugin).
+This project is built using **Kotlin** and **Gradle (Kotlin DSL)** with the [IntelliJ Platform Gradle Plugin](https://github.com/JetBrains/intellij-platform-gradle-plugin).
 
 ### Useful Gradle Tasks
 
-- `./gradlew runIde`: Runs a development instance of IntelliJ IDEA with the plugin installed.
-- `./gradlew test`: Executes unit tests.
-- `./gradlew verifyPlugin`: Validates the plugin configuration and checks for compatibility.
-- `./gradlew buildPlugin`: Assembles the plugin distribution ZIP (found in `build/distributions`).
-- `./gradlew publishPlugin`: Uploads the plugin to JetBrains Marketplace (requires `JETBRAINS_TOKEN`).
+- `./gradlew runIde`: Launches a development instance of IntelliJ IDEA with the plugin active.
+- `./gradlew test`: Executes all unit and integration tests.
+- `./gradlew verifyPlugin`: Validates plugin descriptor, dependencies, and binary compatibility.
+- `./gradlew buildPlugin`: Builds the distribution ZIP artifact (located under `build/distributions`).
+- `./gradlew publishPlugin`: Publishes the plugin to JetBrains Marketplace (requires `JETBRAINS_TOKEN`).
 
 ### Predefined Run Configurations
 
-The `.run` directory contains predefined configurations for IntelliJ IDEA:
+Preconfigured run targets in `.run`:
 - **Run Plugin**: Executes `:runIde`.
 - **Run Tests**: Executes `:test`.
 - **Run Verifications**: Executes `:verifyPlugin`.
@@ -81,32 +98,45 @@ The `.run` directory contains predefined configurations for IntelliJ IDEA:
 
 ```text
 .
-├── .run/                   # Predefined Run/Debug Configurations
+├── .run/                                # Predefined Run/Debug configurations
 ├── gradle/
-│   ├── wrapper/            # Gradle Wrapper
-│   └── libs.versions.toml  # Version catalog
+│   ├── wrapper/                         # Gradle Wrapper files
+│   └── libs.versions.toml               # Version catalog
 ├── src/
 │   ├── main/
-│   │   ├── kotlin/         # Plugin source code (Kotlin)
-│   │   │   └── de/spotlessformatplugin/
-│   │   │       ├── listeners/   # Entry point: SpotlessSaveListener (on-save)
-│   │   │       ├── services/    # Business logic (SpotlessRunner)
-│   │   │       └── settings/    # Entry point: SpotlessFormatConfigurable (Settings UI)
+│   │   ├── kotlin/de/spotlessformatplugin/
+│   │   │   ├── listeners/               # Event listeners (SpotlessSaveListener)
+│   │   │   ├── services/                # Core logic & services
+│   │   │   │   ├── formatters/          # Formatter implementations:
+│   │   │   │   │   ├── EclipseFormatter.kt
+│   │   │   │   │   ├── GoogleJavaFormatFormatter.kt
+│   │   │   │   │   ├── PrettierFormatter.kt
+│   │   │   │   │   └── SpotlessConfigFormatter.kt
+│   │   │   │   ├── DocumentTextService.kt
+│   │   │   │   ├── SpotlessConfigResolver.kt
+│   │   │   │   ├── SpotlessNotifier.kt
+│   │   │   │   ├── SpotlessRunner.kt
+│   │   │   │   └── SpotlessSettingsValidator.kt
+│   │   │   └── settings/                # Settings UI and Persistent State
+│   │   │       ├── SpotlessFormatConfigurable.kt
+│   │   │       └── SpotlessFormatSettings.kt
 │   │   └── resources/
-│   │       └── META-INF/   # Plugin descriptors (plugin.xml) and icons
-│   ├── test/
-│   │   └── kotlin/         # Unit tests (JUnit 5 and JUnit 4)
-├── build.gradle.kts        # Main build configuration (Gradle Kotlin DSL)
-├── settings.gradle.kts     # Gradle settings
-├── gradle.properties       # Gradle properties
-├── CHANGELOG.md            # Project changelog
-├── LICENSE                 # License file
-└── README.md               # This file
+│   │       └── META-INF/                # plugin.xml & pluginIcon.svg
+│   └── test/
+│       └── kotlin/de/spotlessformatplugin/
+│           ├── services/                # Service & Formatter unit tests
+│           └── settings/                # Settings tests
+├── build.gradle.kts                     # Gradle build configuration
+├── settings.gradle.kts                  # Gradle settings
+├── gradle.properties                    # Project properties
+├── CHANGELOG.md                         # Changelog
+├── LICENSE                              # Apache 2.0 License
+└── README.md                            # Documentation
 ```
 
 ## Testing
 
-Tests are located in `src/test/kotlin`. The project uses **JUnit 5** with support for **JUnit 4** via the vintage engine. Run them using:
+Tests are written using **JUnit 5** and **JUnit 4** (vintage engine) alongside the IntelliJ Platform test framework:
 
 ```bash
 ./gradlew test
