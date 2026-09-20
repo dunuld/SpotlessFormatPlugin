@@ -26,6 +26,7 @@ dependencies {
 
     implementation(libs.spotless.lib)
     implementation(libs.google.java.format)
+    implementation(libs.eclipseJdtCore)
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.junit.v4)

@@ -27,7 +27,18 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
 
     fun testFormatFileWithEclipseIntegration() {
         val formatterFile = File(tempDir, "formatter.xml")
-        formatterFile.createNewFile()
+        formatterFile.writeText(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <profiles version="13">
+                <profile kind="CodeFormatterProfile" name="Test" version="13">
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="4"/>
+                    <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="4"/>
+                </profile>
+            </profiles>
+            """.trimIndent()
+        )
         val importOrderFile = File(tempDir, "import.order")
         importOrderFile.createNewFile()
 
@@ -46,15 +57,8 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
         val psiFile = myFixture.configureByText("Test.java", before)
         spotlessRunner.formatFile(psiFile.virtualFile)
 
-        val after = """
-            public class Test {
-                public void test() {
-                    int i = 0;
-                }
-            }
-        """.trimIndent()
-
-        myFixture.checkResult(after)
+        val expected = "public class Test {\n    public void test() {\n        int i = 0;\n    }\n}\n"
+        assertEquals(expected, psiFile.text)
     }
 
     fun testFormatFileWithGoogleJavaFormatIntegration() {
