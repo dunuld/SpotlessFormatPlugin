@@ -1,42 +1,149 @@
 package de.spotlessformatplugin.services.formatters
 
-import com.intellij.codeInsight.actions.OptimizeImportsProcessor
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.command.WriteCommandAction
+import com.diffplug.spotless.Formatter as SpotlessFormatter
+import com.diffplug.spotless.FormatterStep
+import com.diffplug.spotless.LineEnding
+import com.diffplug.spotless.generic.EndWithNewlineStep
+import com.diffplug.spotless.generic.TrimTrailingWhitespaceStep
+import com.diffplug.spotless.java.ImportOrderStep
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiManager
-import com.intellij.psi.codeStyle.CodeStyleManager
+import de.spotlessformatplugin.services.DocumentTextService
 import de.spotlessformatplugin.services.SpotlessNotifier
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
+import org.eclipse.jdt.core.JavaCore
+import org.eclipse.jdt.core.ToolFactory
+import org.eclipse.jdt.core.formatter.CodeFormatter
+import org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants
+import org.eclipse.jface.text.Document
+import java.io.File
+import java.util.Properties
+import javax.xml.XMLConstants
+import javax.xml.parsers.DocumentBuilderFactory
 
 class EclipseFormatter(
-    private val project: Project,
+    private val documentTextService: DocumentTextService,
     private val notifier: SpotlessNotifier
 ) {
+    constructor(project: Project, notifier: SpotlessNotifier) : this(DocumentTextService(project), notifier)
 
     fun format(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
-        notifier.notifyInfo("Applying Eclipse Formatter using: ${settings.formatterXmlPath}")
-        // Currently we use the IntelliJ-Formatter as Fallback/Mock
-        applyLegacyFormat(virtualFile)
+        val text = documentTextService.getFileText(virtualFile) ?: return
+        val extension = virtualFile.extension ?: ""
+
+        try {
+            val steps = mutableListOf<FormatterStep>()
+
+            if (extension.equals("java", ignoreCase = true)) {
+                val xmlPath = settings.formatterXmlPath
+                if (xmlPath.isNotBlank()) {
+                    val xmlFile = File(xmlPath)
+                    if (xmlFile.exists()) {
+                        val options = parseEclipseSettings(xmlFile)
+                        steps.add(EclipseJdtStep(options))
+                    }
+                }
+
+                val importOrderPath = settings.importOrderPath
+                if (importOrderPath.isNotBlank()) {
+                    val importOrderFile = File(importOrderPath)
+                    if (importOrderFile.exists()) {
+                        steps.add(ImportOrderStep.forJava().createFrom(importOrderFile))
+                    }
+                }
+            }
+
+            steps.add(TrimTrailingWhitespaceStep.create())
+            steps.add(EndWithNewlineStep.create())
+
+            val formatter = SpotlessFormatter.builder()
+                .lineEndingsPolicy(LineEnding.PLATFORM_NATIVE.createPolicy())
+                .encoding(Charsets.UTF_8)
+                .steps(steps)
+                .build()
+
+            val formatted = formatter.compute(text, File(virtualFile.path))
+            documentTextService.updateDocumentText(virtualFile, formatted, "Spotless Formatting")
+            notifier.notifyInfo("Applying Eclipse Formatter using: ${settings.formatterXmlPath}")
+        } catch (e: Exception) {
+            notifier.notifyError("Spotless formatting failed for ${virtualFile.name}: ${e.message}")
+        }
     }
 
-    private fun applyLegacyFormat(virtualFile: VirtualFile) {
-        val application = ApplicationManager.getApplication()
-        val runnable = Runnable {
-            val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return@Runnable
-            WriteCommandAction.runWriteCommandAction(project, "Spotless Formatting", null, {
-                CodeStyleManager.getInstance(project).reformat(psiFile)
-                if (virtualFile.extension.equals("java", ignoreCase = true)) {
-                    OptimizeImportsProcessor(project, psiFile).run()
-                }
-            })
+    private class EclipseJdtStep(private val options: Map<String, String>) : FormatterStep {
+        override fun getName(): String = "eclipse jdt formatter"
+
+        override fun format(rawUnix: String, file: File): String {
+            return formatWithEclipseJdt(rawUnix, options)
         }
 
-        if (application.isDispatchThread) {
-            runnable.run()
-        } else {
-            application.invokeAndWait(runnable)
+        override fun close() {}
+
+        private fun formatWithEclipseJdt(rawText: String, options: Map<String, String>): String {
+            val formatterOptions = HashMap<String, String>()
+            val defaultSettings = DefaultCodeFormatterConstants.getEclipseDefaultSettings()
+            if (defaultSettings != null) {
+                for ((key, value) in defaultSettings) {
+                    if (key != null && value != null) {
+                        formatterOptions[key] = value
+                    }
+                }
+            }
+            formatterOptions.putAll(options)
+            formatterOptions.putIfAbsent(JavaCore.COMPILER_SOURCE, JavaCore.VERSION_17)
+            formatterOptions.putIfAbsent(JavaCore.COMPILER_COMPLIANCE, JavaCore.VERSION_17)
+            formatterOptions.putIfAbsent(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, JavaCore.VERSION_17)
+
+            val codeFormatter = ToolFactory.createCodeFormatter(formatterOptions)
+            val textEdit = codeFormatter.format(
+                CodeFormatter.K_COMPILATION_UNIT or CodeFormatter.F_INCLUDE_COMMENTS,
+                rawText,
+                0,
+                rawText.length,
+                0,
+                null
+            ) ?: return rawText
+
+            val document = Document(rawText)
+            textEdit.apply(document)
+            return document.get()
         }
+    }
+
+    private fun parseEclipseSettings(file: File): Map<String, String> {
+        if (!file.exists() || file.length() == 0L) {
+            return emptyMap()
+        }
+        val options = mutableMapOf<String, String>()
+        try {
+            val factory = DocumentBuilderFactory.newInstance()
+            try {
+                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+                factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+            } catch (_: Exception) {}
+            val builder = factory.newDocumentBuilder()
+            val doc = builder.parse(file)
+            val settings = doc.getElementsByTagName("setting")
+            for (i in 0 until settings.length) {
+                val node = settings.item(i)
+                val attributes = node.attributes
+                val id = attributes?.getNamedItem("id")?.nodeValue
+                val value = attributes?.getNamedItem("value")?.nodeValue
+                if (id != null && value != null) {
+                    options[id] = value
+                }
+            }
+        } catch (_: Exception) {
+            try {
+                val properties = Properties()
+                file.inputStream().use { properties.load(it) }
+                for ((key, value) in properties) {
+                    if (key != null && value != null) {
+                        options[key.toString()] = value.toString()
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        return options
     }
 }
