@@ -10,6 +10,16 @@ import com.intellij.openapi.project.Project
 )
 class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.State> {
 
+    enum class ConfigurationMode {
+        FORMATTER,
+        SPOTLESS;
+
+        override fun toString(): String = when (this) {
+            FORMATTER -> "Formatter"
+            SPOTLESS -> "Spotless"
+        }
+    }
+
     enum class FormatterType {
         ECLIPSE,
         PRETTIER,
@@ -17,6 +27,7 @@ class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.S
     }
 
     class State {
+        var configurationMode: ConfigurationMode = ConfigurationMode.FORMATTER
         var formatterType: FormatterType = FormatterType.ECLIPSE
         var formatterXmlPath: String = ""
         var formatterProfile: String = ""
@@ -25,7 +36,11 @@ class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.S
         var gjfVersion: String = "1.17.0"
         var executeOnSave: Boolean = false
         var supportedExtensions: String = "java,xml,js,ts,json"
-        var useSpotlessConfig: Boolean = false
+        var useSpotlessConfig: Boolean
+            get() = configurationMode == ConfigurationMode.SPOTLESS
+            set(value) {
+                configurationMode = if (value) ConfigurationMode.SPOTLESS else ConfigurationMode.FORMATTER
+            }
         var spotlessConfigPath: String = ""
         var enableNotifications: Boolean = true
     }
