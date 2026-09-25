@@ -13,6 +13,7 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
         state.formatterProfile = "MyProfile"
         state.importOrderPath = "/path/to/import.order"
         state.executeOnSave = true
+        state.enableNotifications = false
         state.useSpotlessConfig = false
         state.formatterType = SpotlessFormatSettings.FormatterType.ECLIPSE
 
@@ -22,6 +23,15 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
         assertEquals("/path/to/import.order", newSettings.state.importOrderPath)
         assertEquals(SpotlessFormatSettings.FormatterType.ECLIPSE, newSettings.state.formatterType)
         assertTrue(newSettings.state.executeOnSave)
+        assertFalse(newSettings.state.enableNotifications)
+    }
+
+    fun testDefaultSettings() {
+        val state = SpotlessFormatSettings.State()
+        assertTrue(state.enableNotifications)
+        assertFalse(state.executeOnSave)
+        assertFalse(state.useSpotlessConfig)
+        assertEquals(SpotlessFormatSettings.FormatterType.ECLIPSE, state.formatterType)
     }
 
     fun testSettingsModifiedAndApply() {
@@ -32,6 +42,7 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
         settings.state.useSpotlessConfig = false
         settings.state.spotlessConfigPath = ""
         settings.state.executeOnSave = false
+        settings.state.enableNotifications = true
         settings.state.formatterProfile = ""
         configurable.reset()
 
@@ -39,6 +50,7 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
 
         settings.state.spotlessConfigPath = "new-config.gradle"
         settings.state.executeOnSave = true
+        settings.state.enableNotifications = false
         configurable.reset()
         assertFalse(configurable.isModified)
     }

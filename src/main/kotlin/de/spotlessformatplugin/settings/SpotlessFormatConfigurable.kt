@@ -34,6 +34,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
     private var spotlessConfigField: TextFieldWithBrowseButton? = null
     private var supportedExtensionsField: JTextField? = null
     private var executeOnSaveCheckBox: JCheckBox? = null
+    private var enableNotificationsCheckBox: JCheckBox? = null
 
     private var isUpdatingFromReset = false
 
@@ -132,6 +133,12 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                     .enabledIf(onSaveSelected)
                     .component
             }
+
+            row {
+                enableNotificationsCheckBox = checkBox("Show notifications")
+                    .enabledIf(onSaveSelected)
+                    .component
+            }
         }
 
         formatterXmlField?.textField?.document?.addDocumentListener(object : DocumentAdapter() {
@@ -195,7 +202,8 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                 useSpotlessConfigCheckBox?.isSelected != state.useSpotlessConfig ||
                 spotlessConfigField?.text != state.spotlessConfigPath ||
                 supportedExtensionsField?.text != state.supportedExtensions ||
-                executeOnSaveCheckBox?.isSelected != state.executeOnSave
+                executeOnSaveCheckBox?.isSelected != state.executeOnSave ||
+                enableNotificationsCheckBox?.isSelected != state.enableNotifications
     }
 
     override fun apply() {
@@ -210,6 +218,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
         state.spotlessConfigPath = spotlessConfigField?.text ?: ""
         state.supportedExtensions = supportedExtensionsField?.text ?: "java,xml"
         state.executeOnSave = executeOnSaveCheckBox?.isSelected ?: false
+        state.enableNotifications = enableNotificationsCheckBox?.isSelected ?: true
     }
 
     override fun reset() {
@@ -226,6 +235,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
             spotlessConfigField?.text = state.spotlessConfigPath
             supportedExtensionsField?.text = state.supportedExtensions
             executeOnSaveCheckBox?.isSelected = state.executeOnSave
+            enableNotificationsCheckBox?.isSelected = state.enableNotifications
         } finally {
             isUpdatingFromReset = false
         }

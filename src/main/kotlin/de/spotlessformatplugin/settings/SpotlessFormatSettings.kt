@@ -27,6 +27,7 @@ class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.S
         var supportedExtensions: String = "java,xml,js,ts,json"
         var useSpotlessConfig: Boolean = false
         var spotlessConfigPath: String = ""
+        var enableNotifications: Boolean = true
     }
 
     private var myState = State()
