@@ -28,11 +28,13 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
 
         settings.state.useSpotlessConfig = false
         settings.state.spotlessConfigPath = ""
+        settings.state.executeOnSave = false
         configurable.reset()
 
         assertFalse(configurable.isModified)
 
         settings.state.spotlessConfigPath = "new-config.gradle"
+        settings.state.executeOnSave = true
         configurable.reset()
         assertFalse(configurable.isModified)
     }

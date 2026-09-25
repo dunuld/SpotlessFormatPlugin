@@ -8,6 +8,7 @@ import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.dsl.builder.COLUMNS_SHORT
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.layout.and
 import com.intellij.ui.layout.not
 import com.intellij.ui.layout.selected
 import java.io.File
@@ -34,16 +35,24 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
     override fun createComponent(): JComponent {
         return panel {
             row {
-                useSpotlessConfigCheckBox = checkBox("Use generic Spotless configuration file").component
+                executeOnSaveCheckBox = checkBox("Execute Spotless on save for changed files").component
+            }
+
+            val onSaveSelected = executeOnSaveCheckBox!!.selected
+
+            row {
+                useSpotlessConfigCheckBox = checkBox("Use generic Spotless configuration file")
+                    .enabledIf(onSaveSelected)
+                    .component
             }
 
             group("Formatter Selection") {
                 row("Formatter Type:") {
                     formatterTypeComboBox = comboBox(SpotlessFormatSettings.FormatterType.entries)
-                        .enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                        .enabledIf(onSaveSelected.and(useSpotlessConfigCheckBox!!.selected.not()))
                         .component
                 }
-            }
+            }.enabledIf(onSaveSelected)
 
             group("Eclipse Formatter") {
                 row("Formatter XML:") {
@@ -54,7 +63,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                         if (it.text.isNotEmpty() && !File(it.text).exists()) {
                             error("File does not exist")
                         } else null
-                    }.enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                    }.enabledIf(onSaveSelected.and(useSpotlessConfigCheckBox!!.selected.not()))
                         .component
                 }
                 row("Import Order File:") {
@@ -65,10 +74,11 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                         if (it.text.isNotEmpty() && !File(it.text).exists()) {
                             error("File does not exist")
                         } else null
-                    }.enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                    }.enabledIf(onSaveSelected.and(useSpotlessConfigCheckBox!!.selected.not()))
                         .component
                 }
             }.visibleIf(createFormatterTypePredicate(SpotlessFormatSettings.FormatterType.ECLIPSE))
+                .enabledIf(onSaveSelected)
 
             group("Prettier") {
                 row("Prettier Config:") {
@@ -76,36 +86,38 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                         project = project,
                         fileChooserDescriptor = FileChooserDescriptorFactory.singleFile().withTitle("Select Prettier Config")
                     ).comment("Path to .prettierrc or prettier.config.js")
-                        .enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                        .enabledIf(onSaveSelected.and(useSpotlessConfigCheckBox!!.selected.not()))
                         .component
                 }
             }.visibleIf(createFormatterTypePredicate(SpotlessFormatSettings.FormatterType.PRETTIER))
+                .enabledIf(onSaveSelected)
 
             group("Google Java Format") {
                 row("Version:") {
                     gjfVersionField = textField().comment("e.g. 1.17.0")
                         .columns(COLUMNS_SHORT)
-                        .enabledIf(useSpotlessConfigCheckBox!!.selected.not())
+                        .enabledIf(onSaveSelected.and(useSpotlessConfigCheckBox!!.selected.not()))
                         .component
                 }
             }.visibleIf(createFormatterTypePredicate(SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT))
+                .enabledIf(onSaveSelected)
             
             group("Spotless Configuration") {
                 row("Spotless Config:") {
                     spotlessConfigField = textFieldWithBrowseButton(
                         project = project,
                         fileChooserDescriptor = FileChooserDescriptorFactory.singleFile().withTitle("Select Spotless Configuration File")
-                    ).comment("Path to a generic Spotless configuration file (e.g. spotless.gradle). If a relative path is provided, the plugin searches hierarchically upwards from the file being formatted.").enabledIf(useSpotlessConfigCheckBox!!.selected).component
+                    ).comment("Path to a generic Spotless configuration file (e.g. spotless.gradle). If a relative path is provided, the plugin searches hierarchically upwards from the file being formatted.")
+                        .enabledIf(onSaveSelected.and(useSpotlessConfigCheckBox!!.selected))
+                        .component
                 }
-            }
+            }.enabledIf(onSaveSelected)
 
             row("Supported Extensions:") {
                 supportedExtensionsField = textField()
                     .comment("Comma-separated list of file extensions (e.g., java,xml,kt)")
+                    .enabledIf(onSaveSelected)
                     .component
-            }
-            row {
-                executeOnSaveCheckBox = checkBox("Execute Spotless on save for changed files").component
             }
         }
     }
