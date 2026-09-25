@@ -200,4 +200,98 @@ class EclipseFormatterTest : BasePlatformTestCase() {
 
         assertTrue(psiFile.text.contains("public class Test"))
     }
+
+    fun testGetProfileNames() {
+        val xmlFile = File(tempDir, "multi_profiles.xml")
+        xmlFile.writeText(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <profiles version="13">
+                <profile kind="CodeFormatterProfile" name="ProfileTwoSpaces" version="13">
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="2"/>
+                    <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="2"/>
+                </profile>
+                <profile kind="CodeFormatterProfile" name="ProfileFourSpaces" version="13">
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="4"/>
+                    <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="4"/>
+                </profile>
+            </profiles>
+            """.trimIndent()
+        )
+
+        val profileNames = EclipseFormatter.getProfileNames(xmlFile)
+        assertEquals(listOf("ProfileTwoSpaces", "ProfileFourSpaces"), profileNames)
+
+        val nonExistent = EclipseFormatter.getProfileNames(File(tempDir, "non_existent.xml"))
+        assertTrue(nonExistent.isEmpty())
+
+        val invalidXml = File(tempDir, "invalid.xml")
+        invalidXml.writeText("invalid")
+        assertTrue(EclipseFormatter.getProfileNames(invalidXml).isEmpty())
+    }
+
+    fun testFormatJavaFileWithSelectedProfile() {
+        val formatterFile = File(tempDir, "multi_profiles.xml")
+        formatterFile.writeText(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <profiles version="13">
+                <profile kind="CodeFormatterProfile" name="TwoSpaces" version="13">
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="2"/>
+                    <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="2"/>
+                </profile>
+                <profile kind="CodeFormatterProfile" name="FourSpaces" version="13">
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="4"/>
+                    <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="4"/>
+                </profile>
+            </profiles>
+            """.trimIndent()
+        )
+        val importOrderFile = File(tempDir, "import.order")
+        importOrderFile.createNewFile()
+
+        val before = """
+            public class Test {
+            public void test() {
+            int i = 0;
+            }
+            }
+        """.trimIndent()
+
+        // Format with TwoSpaces profile
+        val settingsTwo = SpotlessFormatSettings.State()
+        settingsTwo.formatterXmlPath = formatterFile.absolutePath
+        settingsTwo.formatterProfile = "TwoSpaces"
+        settingsTwo.importOrderPath = importOrderFile.absolutePath
+
+        val psiFileTwo = myFixture.configureByText("TestTwo.java", before)
+        eclipseFormatter.format(psiFileTwo.virtualFile, settingsTwo)
+        val expectedTwo = "public class Test {\n  public void test() {\n    int i = 0;\n  }\n}\n"
+        assertEquals(expectedTwo, psiFileTwo.text)
+
+        // Format with FourSpaces profile
+        val settingsFour = SpotlessFormatSettings.State()
+        settingsFour.formatterXmlPath = formatterFile.absolutePath
+        settingsFour.formatterProfile = "FourSpaces"
+        settingsFour.importOrderPath = importOrderFile.absolutePath
+
+        val psiFileFour = myFixture.configureByText("TestFour.java", before)
+        eclipseFormatter.format(psiFileFour.virtualFile, settingsFour)
+        val expectedFour = "public class Test {\n    public void test() {\n        int i = 0;\n    }\n}\n"
+        assertEquals(expectedFour, psiFileFour.text)
+
+        // Fallback when unknown profile name is supplied
+        val settingsFallback = SpotlessFormatSettings.State()
+        settingsFallback.formatterXmlPath = formatterFile.absolutePath
+        settingsFallback.formatterProfile = "UnknownProfile"
+        settingsFallback.importOrderPath = importOrderFile.absolutePath
+
+        val psiFileFallback = myFixture.configureByText("TestFallback.java", before)
+        eclipseFormatter.format(psiFileFallback.virtualFile, settingsFallback)
+        assertEquals(expectedTwo, psiFileFallback.text)
+    }
 }
