@@ -20,6 +20,7 @@ import java.io.File
 import java.util.Properties
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
+import org.w3c.dom.Element
 
 class EclipseFormatter(
     private val documentTextService: DocumentTextService,
@@ -39,7 +40,7 @@ class EclipseFormatter(
                 if (xmlPath.isNotBlank()) {
                     val xmlFile = File(xmlPath)
                     if (xmlFile.exists()) {
-                        val options = parseEclipseSettings(xmlFile)
+                        val options = parseEclipseSettings(xmlFile, settings.formatterProfile)
                         steps.add(EclipseJdtStep(options))
                     }
                 }
@@ -110,27 +111,76 @@ class EclipseFormatter(
         }
     }
 
-    private fun parseEclipseSettings(file: File): Map<String, String> {
-        if (!file.exists() || file.length() == 0L) {
-            return emptyMap()
-        }
-        val options = mutableMapOf<String, String>()
-        try {
-            val factory = DocumentBuilderFactory.newInstance()
+    companion object {
+        fun getProfileNames(file: File): List<String> {
+            if (!file.exists() || file.length() == 0L) {
+                return emptyList()
+            }
+            val profileNames = mutableListOf<String>()
             try {
-                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
-                factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+                val doc = parseXmlDocument(file) ?: return emptyList()
+                val profiles = doc.getElementsByTagName("profile")
+                for (i in 0 until profiles.length) {
+                    val node = profiles.item(i)
+                    val name = node.attributes?.getNamedItem("name")?.nodeValue
+                    if (!name.isNullOrBlank()) {
+                        profileNames.add(name)
+                    }
+                }
             } catch (_: Exception) {}
-            val builder = factory.newDocumentBuilder()
-            val doc = builder.parse(file)
-            val settings = doc.getElementsByTagName("setting")
-            for (i in 0 until settings.length) {
-                val node = settings.item(i)
-                val attributes = node.attributes
-                val id = attributes?.getNamedItem("id")?.nodeValue
-                val value = attributes?.getNamedItem("value")?.nodeValue
-                if (id != null && value != null) {
-                    options[id] = value
+            return profileNames
+        }
+
+        fun parseEclipseSettings(file: File, profileName: String? = null): Map<String, String> {
+            if (!file.exists() || file.length() == 0L) {
+                return emptyMap()
+            }
+            val options = mutableMapOf<String, String>()
+            try {
+                val doc = parseXmlDocument(file)
+                if (doc != null) {
+                    val profiles = doc.getElementsByTagName("profile")
+                    if (profiles.length > 0) {
+                        var selectedProfileNode: org.w3c.dom.Node? = null
+                        if (!profileName.isNullOrBlank()) {
+                            for (i in 0 until profiles.length) {
+                                val node = profiles.item(i)
+                                val name = node.attributes?.getNamedItem("name")?.nodeValue
+                                if (name == profileName) {
+                                selectedProfileNode = node
+                                break
+                            }
+                        }
+                    }
+                    if (selectedProfileNode == null) {
+                        selectedProfileNode = profiles.item(0)
+                    }
+
+                    if (selectedProfileNode is Element) {
+                        val settings = selectedProfileNode.getElementsByTagName("setting")
+                        for (i in 0 until settings.length) {
+                            val node = settings.item(i)
+                            val attributes = node.attributes
+                            val id = attributes?.getNamedItem("id")?.nodeValue
+                            val value = attributes?.getNamedItem("value")?.nodeValue
+                            if (id != null && value != null) {
+                                options[id] = value
+                            }
+                        }
+                    }
+                    return options
+                } else {
+                    val settings = doc.getElementsByTagName("setting")
+                    for (i in 0 until settings.length) {
+                        val node = settings.item(i)
+                        val attributes = node.attributes
+                        val id = attributes?.getNamedItem("id")?.nodeValue
+                        val value = attributes?.getNamedItem("value")?.nodeValue
+                        if (id != null && value != null) {
+                            options[id] = value
+                        }
+                    }
+                    return options
                 }
             }
         } catch (_: Exception) {
@@ -146,4 +196,15 @@ class EclipseFormatter(
         }
         return options
     }
+
+    private fun parseXmlDocument(file: File): org.w3c.dom.Document? {
+        val factory = DocumentBuilderFactory.newInstance()
+        try {
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+        } catch (_: Exception) {}
+        val builder = factory.newDocumentBuilder()
+        return builder.parse(file)
+    }
+}
 }

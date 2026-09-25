@@ -19,6 +19,7 @@ class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.S
     class State {
         var formatterType: FormatterType = FormatterType.ECLIPSE
         var formatterXmlPath: String = ""
+        var formatterProfile: String = ""
         var importOrderPath: String = ""
         var prettierConfigPath: String = ""
         var gjfVersion: String = "1.17.0"
