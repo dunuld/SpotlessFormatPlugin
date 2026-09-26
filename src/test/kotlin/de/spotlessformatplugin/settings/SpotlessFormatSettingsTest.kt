@@ -13,6 +13,7 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
         state.formatterProfile = "MyProfile"
         state.importOrderPath = "/path/to/import.order"
         state.executeOnSave = true
+        state.overrideReformatAction = true
         state.enableNotifications = false
         state.useSpotlessConfig = false
         state.formatterType = SpotlessFormatSettings.FormatterType.ECLIPSE
@@ -23,6 +24,7 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
         assertEquals("/path/to/import.order", newSettings.state.importOrderPath)
         assertEquals(SpotlessFormatSettings.FormatterType.ECLIPSE, newSettings.state.formatterType)
         assertTrue(newSettings.state.executeOnSave)
+        assertTrue(newSettings.state.overrideReformatAction)
         assertFalse(newSettings.state.enableNotifications)
     }
 
@@ -30,6 +32,7 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
         val state = SpotlessFormatSettings.State()
         assertTrue(state.enableNotifications)
         assertFalse(state.executeOnSave)
+        assertFalse(state.overrideReformatAction)
         assertFalse(state.useSpotlessConfig)
         assertEquals(SpotlessFormatSettings.FormatterType.ECLIPSE, state.formatterType)
     }
@@ -42,6 +45,7 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
         settings.state.useSpotlessConfig = false
         settings.state.spotlessConfigPath = ""
         settings.state.executeOnSave = false
+        settings.state.overrideReformatAction = false
         settings.state.enableNotifications = true
         settings.state.formatterProfile = ""
         configurable.reset()
@@ -50,9 +54,11 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
 
         settings.state.spotlessConfigPath = "new-config.gradle"
         settings.state.executeOnSave = true
+        settings.state.overrideReformatAction = true
         settings.state.enableNotifications = false
         configurable.reset()
         assertFalse(configurable.isModified)
+        assertTrue(settings.state.overrideReformatAction)
     }
 
     fun testConfigurablePopulatesAndAppliesProfiles() {
