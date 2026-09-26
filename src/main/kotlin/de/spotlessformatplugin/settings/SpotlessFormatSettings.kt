@@ -35,6 +35,7 @@ class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.S
         var prettierConfigPath: String = ""
         var gjfVersion: String = "1.17.0"
         var executeOnSave: Boolean = false
+        var overrideReformatAction: Boolean = false
         var supportedExtensions: String = "java,xml,js,ts,json"
         var useSpotlessConfig: Boolean
             get() = configurationMode == ConfigurationMode.SPOTLESS
