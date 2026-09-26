@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://plugins.jetbrains.com/plugin/34407-spotless-formatter"><img src="https://img.shields.io/jetbrains/plugin/v/34092" alt="Version"/></a>
+  <a href="https://plugins.jetbrains.com/plugin/34407-spotless-formatter"><img src="https://img.shields.io/jetbrains/plugin/v/34407" alt="Version"/></a>
   <a href="https://github.com/dunuld/SpotlessFormatPlugin/actions/workflows/gradle.yml"><img src="https://github.com/dunuld/SpotlessFormatPlugin/actions/workflows/gradle.yml/badge.svg" alt="Build Status"/></a>
   <a href="https://github.com/dunuld/SpotlessFormatPlugin/actions/workflows/qodana_code_quality.yml"><img src="https://github.com/dunuld/SpotlessFormatPlugin/actions/workflows/qodana_code_quality.yml/badge.svg" alt="Qodana Code Quality"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"/></a>
