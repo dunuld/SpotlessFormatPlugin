@@ -39,4 +39,8 @@
                   topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
     </projectListeners>
 
+    <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity implementation="de.spotlessformatplugin.actions.SpotlessReformatActionInstaller"/>
+    </extensions>
+
 </idea-plugin>
