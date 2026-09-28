@@ -28,10 +28,13 @@
         <projectConfigurable
                 instance="de.spotlessformatplugin.settings.SpotlessFormatConfigurable"
                 id="de.spotlessformatplugin.settings.SpotlessFormatConfigurable"
-                displayName="Spotless Formatter"/>
+                key="settings.displayName"
+                bundle="messages.SpotlessBundle"/>
 
         <notificationGroup id="Spotless Formatter"
-                           displayType="BALLOON"/>
+                           displayType="BALLOON"
+                           key="notification.group.spotless"
+                           bundle="messages.SpotlessBundle"/>
     </extensions>
 
     <projectListeners>
