@@ -11,7 +11,7 @@ class SpotlessNotifier(private val project: Project) {
         if (!isNotificationsEnabled()) return
         NotificationGroupManager.getInstance()
             .getNotificationGroup("Spotless Formatter")
-            .createNotification("Spotless Configuration Error", content, NotificationType.ERROR)
+            .createNotification("Spotless configuration error", content, NotificationType.ERROR)
             .notify(project)
     }
 
@@ -19,7 +19,7 @@ class SpotlessNotifier(private val project: Project) {
         if (!isNotificationsEnabled()) return
         NotificationGroupManager.getInstance()
             .getNotificationGroup("Spotless Formatter")
-            .createNotification("Spotless Formatter", content, NotificationType.INFORMATION)
+            .createNotification("Spotless formatter", content, NotificationType.INFORMATION)
             .notify(project)
     }
 

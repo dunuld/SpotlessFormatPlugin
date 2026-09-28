@@ -57,6 +57,7 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
 
     override fun getDisplayName(): String = "Spotless Formatter"
 
+    @Suppress("UnstableApiUsage")
     override fun createComponent(): JComponent {
         val rootPanel = panel {
             row {
@@ -64,7 +65,7 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
             }
 
             row {
-                overrideReformatCheckBox = checkBox("Use Spotless when running IntelliJ's Reformat Code action")
+                overrideReformatCheckBox = checkBox("Use Spotless when running IntelliJ's reformat code action")
                     .component
             }
 
@@ -131,7 +132,7 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
 
             group("Google Java Format") {
                 row("Version:") {
-                    gjfVersionField = textField().comment("e.g. 1.17.0")
+                    gjfVersionField = textField().comment("E.g. 1.17.0")
                         .columns(COLUMNS_SHORT)
                         .enabledIf(onSaveSelected)
                         .component
