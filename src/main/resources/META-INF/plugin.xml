@@ -30,6 +30,8 @@
                 id="de.spotlessformatplugin.settings.SpotlessFormatConfigurable"
                 displayName="Spotless Formatter"/>
 
+        <actionOnSaveInfoProvider implementation="de.spotlessformatplugin.actionsonsave.SpotlessActionOnSaveInfoProvider"/>
+
         <notificationGroup id="Spotless Formatter"
                            displayType="BALLOON"/>
     </extensions>
