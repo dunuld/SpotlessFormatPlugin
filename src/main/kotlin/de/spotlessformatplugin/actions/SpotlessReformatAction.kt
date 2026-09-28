@@ -48,20 +48,18 @@ class SpotlessReformatAction(private val original: AnAction) : AnAction(
     }
 }
 
+private val isActionInstalled = AtomicBoolean(false)
+
 class SpotlessReformatActionInstaller : ProjectActivity {
     override suspend fun execute(project: Project) = withContext(Dispatchers.EDT) {
         val manager = ActionManager.getInstance()
-        if (installed.compareAndSet(false, true)) {
+        if (isActionInstalled.compareAndSet(false, true)) {
             val original = manager.getAction(IdeActions.ACTION_EDITOR_REFORMAT)
             if (original != null && original !is SpotlessReformatAction) {
                 manager.replaceAction(IdeActions.ACTION_EDITOR_REFORMAT, SpotlessReformatAction(original))
             } else {
-                installed.set(false)
+                isActionInstalled.set(false)
             }
         }
-    }
-
-    companion object {
-        private val installed = AtomicBoolean(false)
     }
 }
