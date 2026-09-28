@@ -31,6 +31,8 @@
                 key="settings.displayName"
                 bundle="messages.SpotlessBundle"/>
 
+        <actionOnSaveInfoProvider implementation="de.spotlessformatplugin.actionsonsave.SpotlessActionOnSaveInfoProvider"/>
+
         <notificationGroup id="Spotless Formatter"
                            displayType="BALLOON"
                            key="notification.group.spotless"
