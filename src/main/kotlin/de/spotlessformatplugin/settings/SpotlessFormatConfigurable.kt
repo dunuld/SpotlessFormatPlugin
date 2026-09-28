@@ -1,7 +1,7 @@
 package de.spotlessformatplugin.settings
 
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
-import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
@@ -18,7 +18,11 @@ import javax.swing.JComponent
 import javax.swing.JTextField
 import javax.swing.event.DocumentEvent
 
-class SpotlessFormatConfigurable(private val project: Project) : Configurable {
+class SpotlessFormatConfigurable(private val project: Project) : SearchableConfigurable {
+
+    companion object {
+        const val CONFIGURABLE_ID = "de.spotlessformatplugin.settings.SpotlessFormatConfigurable"
+    }
 
     private val settings = SpotlessFormatSettings.getInstance(project)
     
@@ -36,6 +40,20 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
     private var enableNotificationsCheckBox: JCheckBox? = null
 
     private var isUpdatingFromReset = false
+    private var pendingExecuteOnSave: Boolean? = null
+
+    var isExecuteOnSave: Boolean
+        get() = executeOnSaveCheckBox?.isSelected ?: pendingExecuteOnSave ?: settings.state.executeOnSave
+        set(value) {
+            val checkBox = executeOnSaveCheckBox
+            if (checkBox != null) {
+                checkBox.isSelected = value
+            } else {
+                pendingExecuteOnSave = value
+            }
+        }
+
+    override fun getId(): String = CONFIGURABLE_ID
 
     override fun getDisplayName(): String = "Spotless Formatter"
 
@@ -212,6 +230,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
     override fun isModified(): Boolean {
         val state = settings.state
         val currentProfile = formatterProfileComboBox?.selectedItem as? String ?: ""
+        val currentExecuteOnSave = executeOnSaveCheckBox?.isSelected ?: pendingExecuteOnSave ?: state.executeOnSave
         return configurationModeComboBox?.selectedItem != state.configurationMode ||
                 formatterTypeComboBox?.selectedItem != state.formatterType ||
                 formatterXmlField?.text != state.formatterXmlPath ||
@@ -221,7 +240,7 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
                 gjfVersionField?.text != state.gjfVersion ||
                 spotlessConfigField?.text != state.spotlessConfigPath ||
                 supportedExtensionsField?.text != state.supportedExtensions ||
-                executeOnSaveCheckBox?.isSelected != state.executeOnSave ||
+                currentExecuteOnSave != state.executeOnSave ||
                 overrideReformatCheckBox?.isSelected != state.overrideReformatAction ||
                 enableNotificationsCheckBox?.isSelected != state.enableNotifications
     }
@@ -237,9 +256,10 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
         state.gjfVersion = gjfVersionField?.text ?: "1.17.0"
         state.spotlessConfigPath = spotlessConfigField?.text ?: ""
         state.supportedExtensions = supportedExtensionsField?.text ?: "java,xml"
-        state.executeOnSave = executeOnSaveCheckBox?.isSelected ?: false
+        state.executeOnSave = executeOnSaveCheckBox?.isSelected ?: pendingExecuteOnSave ?: false
         state.overrideReformatAction = overrideReformatCheckBox?.isSelected ?: false
         state.enableNotifications = enableNotificationsCheckBox?.isSelected ?: true
+        pendingExecuteOnSave = null
     }
 
     override fun reset() {
@@ -255,11 +275,28 @@ class SpotlessFormatConfigurable(private val project: Project) : Configurable {
             gjfVersionField?.text = state.gjfVersion
             spotlessConfigField?.text = state.spotlessConfigPath
             supportedExtensionsField?.text = state.supportedExtensions
-            executeOnSaveCheckBox?.isSelected = state.executeOnSave
+            executeOnSaveCheckBox?.isSelected = pendingExecuteOnSave ?: state.executeOnSave
+            pendingExecuteOnSave = null
             overrideReformatCheckBox?.isSelected = state.overrideReformatAction
             enableNotificationsCheckBox?.isSelected = state.enableNotifications
         } finally {
             isUpdatingFromReset = false
         }
+    }
+
+    override fun disposeUIResources() {
+        pendingExecuteOnSave = null
+        executeOnSaveCheckBox = null
+        configurationModeComboBox = null
+        formatterTypeComboBox = null
+        formatterXmlField = null
+        formatterProfileComboBox = null
+        importOrderField = null
+        prettierConfigField = null
+        gjfVersionField = null
+        spotlessConfigField = null
+        supportedExtensionsField = null
+        overrideReformatCheckBox = null
+        enableNotificationsCheckBox = null
     }
 }
