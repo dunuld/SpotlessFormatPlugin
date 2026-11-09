@@ -102,26 +102,6 @@ class SpotlessSettingsValidatorTest : BasePlatformTestCase() {
         assertTrue(validator.validate(state, psiFile.virtualFile, null))
     }
 
-    fun testValidatePrettierMissingConfigFile() {
-        val state = SpotlessFormatSettings.State()
-        state.useSpotlessConfig = false
-        state.formatterType = SpotlessFormatSettings.FormatterType.PRETTIER
-        state.prettierConfigPath = "/non/existent/.prettierrc"
-
-        val psiFile = myFixture.configureByText("test.js", "const x = 1;")
-        assertFalse(validator.validate(state, psiFile.virtualFile, null))
-    }
-
-    fun testValidatePrettierValidConfigOrEmpty() {
-        val state = SpotlessFormatSettings.State()
-        state.useSpotlessConfig = false
-        state.formatterType = SpotlessFormatSettings.FormatterType.PRETTIER
-        state.prettierConfigPath = ""
-
-        val psiFile = myFixture.configureByText("test.js", "const x = 1;")
-        assertTrue(validator.validate(state, psiFile.virtualFile, null))
-    }
-
     fun testGoogleJavaFormatNeedsNoConfiguration() {
         val state = SpotlessFormatSettings.State()
         state.useSpotlessConfig = false

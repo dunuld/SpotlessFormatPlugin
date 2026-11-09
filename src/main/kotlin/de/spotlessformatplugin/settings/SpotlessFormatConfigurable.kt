@@ -37,7 +37,6 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
     private var formatterXmlField: TextFieldWithBrowseButton? = null
     private var formatterProfileComboBox: ComboBox<String>? = null
     private var importOrderField: TextFieldWithBrowseButton? = null
-    private var prettierConfigField: TextFieldWithBrowseButton? = null
     private var gjfFixImportsCheckBox: JCheckBox? = null
     private var spotlessConfigField: TextFieldWithBrowseButton? = null
     private var supportedExtensionsField: JTextField? = null
@@ -122,19 +121,6 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
                         .component
                 }
             }.visibleIf(createFormatterTypePredicate(SpotlessFormatSettings.FormatterType.ECLIPSE))
-                .enabledIf(spotlessUsed)
-
-            group(message("settings.group.prettier")) {
-                row(message("settings.prettier.config.label")) {
-                    prettierConfigField = cell(fileField(
-                        FileChooserDescriptorFactory.singleFile()
-                            .withTitle(message("settings.prettier.config.chooser.title"))
-                    )).comment(message("settings.prettier.config.comment"))
-                        .validatePath()
-                        .enabledIf(spotlessUsed)
-                        .component
-                }
-            }.visibleIf(createFormatterTypePredicate(SpotlessFormatSettings.FormatterType.PRETTIER))
                 .enabledIf(spotlessUsed)
 
             group(message("settings.group.gjf")) {
@@ -253,7 +239,6 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
                 formatterXmlField?.text != state.formatterXmlPath ||
                 currentProfile != state.formatterProfile ||
                 importOrderField?.text != state.importOrderPath ||
-                prettierConfigField?.text != state.prettierConfigPath ||
                 gjfFixImportsCheckBox?.isSelected != state.gjfFixImports ||
                 spotlessConfigField?.text != state.spotlessConfigPath ||
                 supportedExtensionsField?.text != state.supportedExtensions ||
@@ -271,7 +256,6 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
         state.formatterXmlPath = formatterXmlField?.text ?: defaults.formatterXmlPath
         state.formatterProfile = formatterProfileComboBox?.selectedItem as? String ?: defaults.formatterProfile
         state.importOrderPath = importOrderField?.text ?: defaults.importOrderPath
-        state.prettierConfigPath = prettierConfigField?.text ?: defaults.prettierConfigPath
         state.gjfFixImports = gjfFixImportsCheckBox?.isSelected ?: defaults.gjfFixImports
         state.spotlessConfigPath = spotlessConfigField?.text ?: defaults.spotlessConfigPath
         state.supportedExtensions = supportedExtensionsField?.text ?: defaults.supportedExtensions
@@ -291,7 +275,6 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
             formatterXmlField?.text = state.formatterXmlPath
             updateProfileComboBox(state.formatterProfile)
             importOrderField?.text = state.importOrderPath
-            prettierConfigField?.text = state.prettierConfigPath
             gjfFixImportsCheckBox?.isSelected = state.gjfFixImports
             spotlessConfigField?.text = state.spotlessConfigPath
             supportedExtensionsField?.text = state.supportedExtensions
@@ -313,7 +296,6 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
         formatterXmlField = null
         formatterProfileComboBox = null
         importOrderField = null
-        prettierConfigField = null
         gjfFixImportsCheckBox = null
         spotlessConfigField = null
         supportedExtensionsField = null

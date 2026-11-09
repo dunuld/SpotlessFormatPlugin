@@ -11,7 +11,6 @@
 - Results are applied as minimal line edits instead of replacing the whole document, which preserves the caret, folding and undo history.
 - Google Java Format works in the IDE: the required `jdk.compiler` packages are opened at runtime (previously it failed with an `IllegalAccessError`).
 - Relative paths and `$PROJECT_DIR$` in the settings are resolved against the project root instead of the IDE's working directory.
-- Prettier: the platform path separator is used for `PATH` (fixes Windows), the full file path is passed to `--stdin-filepath` (so `.prettierrc`, `overrides` and `.prettierignore` are found), and CRLF output is normalized.
 - The Eclipse formatter uses the Java language level of the file's module instead of a fixed Java 17 level, and always emits `\n` line separators.
 - The Reformat Code action formats all selected files and restores the original action when the plugin is unloaded.
 - The formatter settings can be edited when only the Reformat Code override is enabled.
@@ -25,9 +24,9 @@
 - UI and notification texts have been moved to the resource bundle.
 - Requires IntelliJ IDEA 2025.3 (build 253) or newer. The project now builds with a Java 21 toolchain.
 
-### Security
+### Removed
 
-- Prettier is no longer executed in untrusted projects, and `npx` is called with `--no-install` so packages are never downloaded implicitly.
+- Prettier support. Projects that had Prettier selected fall back to the Eclipse formatter. The default supported extensions are now `java,xml`.
 
 ### Build
 

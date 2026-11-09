@@ -27,12 +27,10 @@ class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.S
 
     enum class FormatterType {
         ECLIPSE,
-        PRETTIER,
         GOOGLE_JAVA_FORMAT;
 
         override fun toString(): String = when (this) {
             ECLIPSE -> SpotlessBundle.message("settings.formatter.eclipse")
-            PRETTIER -> SpotlessBundle.message("settings.formatter.prettier")
             GOOGLE_JAVA_FORMAT -> SpotlessBundle.message("settings.formatter.gjf")
         }
     }
@@ -43,7 +41,6 @@ class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.S
         var formatterXmlPath: String = ""
         var formatterProfile: String = ""
         var importOrderPath: String = ""
-        var prettierConfigPath: String = ""
 
         /** Remove unused imports and sort imports when using Google Java Format (the google-java-format CLI default). */
         var gjfFixImports: Boolean = true
@@ -87,7 +84,7 @@ class SpotlessFormatSettings : PersistentStateComponent<SpotlessFormatSettings.S
     }
 
     companion object {
-        const val DEFAULT_SUPPORTED_EXTENSIONS = "java,xml,js,ts,json"
+        const val DEFAULT_SUPPORTED_EXTENSIONS = "java,xml"
 
         fun getInstance(project: Project): SpotlessFormatSettings = project.getService(SpotlessFormatSettings::class.java)
 

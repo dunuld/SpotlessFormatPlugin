@@ -23,7 +23,6 @@ class SpotlessSettingsValidator(private val project: Project, private val notifi
 
         return when (state.formatterType) {
             SpotlessFormatSettings.FormatterType.ECLIPSE -> validateEclipseSettings(state, virtualFile)
-            SpotlessFormatSettings.FormatterType.PRETTIER -> validatePrettierSettings(state)
             SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT -> true
         }
     }
@@ -49,11 +48,6 @@ class SpotlessSettingsValidator(private val project: Project, private val notifi
             }
         }
         return true
-    }
-
-    private fun validatePrettierSettings(state: SpotlessFormatSettings.State): Boolean {
-        val configFile = SpotlessPaths.resolve(project, state.prettierConfigPath) ?: return true
-        return checkReadableFile(configFile, "validation.prettier.config.not.found", "validation.prettier.config.not.readable")
     }
 
     private fun checkReadableFile(file: File, notFoundKey: String, notReadableKey: String): Boolean {

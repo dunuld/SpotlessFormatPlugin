@@ -11,7 +11,7 @@
 
 # Spotless Formatter Plugin for IntelliJ IDEA
 
-**SpotlessFormatPlugin** brings [Spotless](https://github.com/diffplug/spotless)-style formatting directly into IntelliJ IDEA. It helps teams enforce consistent formatting with **Eclipse XML formatters**, **Google Java Format**, **Prettier**, or the **generic Spotless steps** (trailing whitespace, final newline, import order).
+**SpotlessFormatPlugin** brings [Spotless](https://github.com/diffplug/spotless)-style formatting directly into IntelliJ IDEA. It helps teams enforce consistent formatting with **Eclipse XML formatters**, **Google Java Format**, or the **generic Spotless steps** (trailing whitespace, final newline, import order).
 
 > ℹ️ The plugin runs the formatters itself. It does **not** read or execute Spotless build configuration (`spotless { ... }` in Gradle or Maven).
 
@@ -22,15 +22,13 @@
 - 🛠️ **Multiple Formatter Engines**:
   - **Eclipse Formatter**: Formats Java files using shared Eclipse JDT formatter XML profiles and `.importorder` files with the embedded Eclipse JDT core formatter. Named profiles in the XML file are detected automatically. The Java source level is taken from the file's module. Other file types only get trailing-whitespace and final-newline fixes.
   - **Google Java Format**: Formats Java files according to the Google Java Style Guide using the bundled google-java-format. Optionally removes unused imports and sorts imports, like the google-java-format CLI does by default.
-  - **Prettier**: Formats JavaScript, TypeScript, JSON, YAML, HTML, CSS and more with a project-local or global Prettier installation (`node_modules`, `PATH`, NVM, Volta, asdf, nodenv, Homebrew, or `npx --no-install`).
   - **Generic Spotless Steps**: Trims trailing whitespace, ensures a final newline and, for Java files, applies an optional import order file.
 - 🔍 **Hierarchical Import Order Lookup**: In the generic mode, a relative import order path is searched upwards from the formatted file, up to the project root. This works well for multi-module projects.
 - 💾 **Actions on Save**: Formats files when you save them explicitly, integrated in **Settings > Tools > Actions on Save**. Formatting runs in the background, only for files of the current project, and the formatted content is what gets saved.
 - ⌨️ **Reformat Code Action Override**: Optionally replaces IntelliJ's **Reformat Code** action (`Cmd+Alt+L` on macOS / `Ctrl+Alt+L` on Windows/Linux). When every selected file has a configured extension, those files are formatted with Spotless. Directories and other files keep the standard behavior.
 - ✍️ **Safe Editing**: Only changed lines are replaced, so the caret, folding and undo history are preserved. If you keep typing while a slow formatter runs, the result is discarded instead of overwriting your changes.
-- ⚙️ **Configurable File Extensions**: Define the comma-separated file extensions that are formatted (default: `java,xml,js,ts,json`).
+- ⚙️ **Configurable File Extensions**: Define the comma-separated file extensions that are formatted (default: `java,xml`).
 - 📁 **Per-Project, Shareable Configuration**: Settings are saved per project (`.idea/spotless-format-settings.xml`). Relative paths and `$PROJECT_DIR$` are resolved against the project root, so the settings work on every machine.
-- 🔒 **Trusted Projects Only for Prettier**: Prettier executes code from the project (local binaries, `prettier.config.js`, plugins), so it never runs in projects that are not trusted.
 - 🚨 **Validation & Notifications**: Live validation in the settings UI. Error notifications are on by default. Success notifications are optional.
 
 ---
@@ -39,7 +37,6 @@
 
 - **IntelliJ IDEA**: 2025.3 (build 253) or newer. Compatibility with newer IDE versions is checked by the IntelliJ Plugin Verifier in CI.
 - **JDK** *(development only)*: 21. The IDE itself runs on its bundled JetBrains Runtime.
-- **Node.js & Prettier** *(Optional)*: Required only when using the Prettier formatter engine.
 - **Operating System**: macOS, Linux, or Windows.
 
 ---
@@ -79,20 +76,18 @@ Spotless Formatter Settings
 │
 ├── (Mode: Formatter)
 │   ├── Formatter Selection:
-│   │   └── Formatter type: [ Eclipse | Prettier | Google Java Format ]
+│   │   └── Formatter type: [ Eclipse | Google Java Format ]
 │   ├── Eclipse:
 │   │   ├── Formatter XML: (path to eclipse-formatter.xml)
 │   │   ├── Formatter profile: [ Default | CustomProfile ]
 │   │   └── Import order file: (path to custom.importorder)
-│   ├── Prettier:
-│   │   └── Prettier config: (optional path to .prettierrc or prettier.config.js)
 │   └── Google Java Format:
 │       └── [x] Remove unused imports and sort imports
 │
 ├── (Mode: Generic Spotless steps)
 │   └── Import order file: (optional, e.g. config/java.importorder)
 │
-├── Supported extensions: java,xml,js,ts,json
+├── Supported extensions: java,xml
 ├── [x] Show error notifications
 └── [ ] Show a notification after each successful formatting
 ```
@@ -103,7 +98,7 @@ All paths can be absolute, relative to the project root, or use `$PROJECT_DIR$`.
 - **Execute Spotless on save for changed files**: When enabled, project files matching the supported extensions are formatted when you save them explicitly (for example with `Cmd+S` / `Ctrl+S`).
   > 💡 **Actions on Save**: You can also toggle this option directly under **Settings > Tools > Actions on Save > "Format changed files with Spotless"**.
 - **Use Spotless when running IntelliJ's reformat code action**: When enabled, pressing `Cmd+Alt+L` (macOS) / `Ctrl+Alt+L` (Windows/Linux) formats the selected files with Spotless instead of the standard IDE formatter. This only applies when every selected file has a supported extension; otherwise the IDE formatter runs.
-- **Supported Extensions**: Comma-separated list of file extensions to format (e.g., `java,xml,js,ts,json,kt`).
+- **Supported Extensions**: Comma-separated list of file extensions to format (e.g., `java,xml,kt`).
 - **Show error notifications**: Balloon notifications for configuration problems and formatting errors (on by default).
 - **Show a notification after each successful formatting**: Off by default, so saving does not produce a balloon every time.
 
@@ -116,14 +111,6 @@ Select and configure a specific formatting engine:
   - **Formatter XML**: Path to your Eclipse code formatter XML export file.
   - **Formatter Profile**: Select a specific named profile defined inside the XML file.
   - **Import Order File**: Path to your Eclipse-compatible `.importorder` file.
-- **Prettier**:
-  - **Prettier Config**: *(Optional)* Path to a `.prettierrc`, `.prettierrc.json`, or `prettier.config.js` configuration file.
-  - **Auto-Detection**: Searches for `prettier` binaries in:
-    - Local `node_modules/.bin/prettier`
-    - System `PATH`
-    - Node version managers (`~/.nvm`, `~/.volta`, `~/.asdf`, `~/.nodenv`) and Homebrew paths
-    - `npx --no-install prettier` fallback (never downloads packages)
-  - **Trusted projects only**: Prettier is not executed in untrusted projects.
 - **Google Java Format**:
   - Uses the google-java-format version bundled with the plugin (shown in the settings). Applies to `.java` files.
   - **Remove unused imports and sort imports**: Enabled by default, matching the google-java-format CLI.
@@ -186,7 +173,6 @@ Pre-configured run targets located under `.run/`:
 │   │   │   │   ├── formatters/          # Engine implementations:
 │   │   │   │   │   ├── EclipseFormatter.kt
 │   │   │   │   │   ├── GoogleJavaFormatFormatter.kt
-│   │   │   │   │   ├── PrettierFormatter.kt
 │   │   │   │   │   └── SpotlessConfigFormatter.kt
 │   │   │   │   ├── DocumentUpdater.kt   # Applies results as minimal line edits
 │   │   │   │   ├── JdkCompilerAccess.kt # Grants google-java-format access to jdk.compiler

@@ -12,7 +12,6 @@
         <ul>
             <li><b>Eclipse formatter</b>: Eclipse JDT formatter XML (with profile selection) and import order files for Java</li>
             <li><b>Google Java Format</b>: bundled google-java-format, optionally removing unused imports and sorting imports</li>
-            <li><b>Prettier</b>: project-local or global Prettier installation (trusted projects only)</li>
             <li><b>Generic Spotless steps</b>: trailing whitespace, final newline and optional import order</li>
         </ul>
         Formatting can run as an <i>Action on Save</i> and can optionally replace the <i>Reformat Code</i> action

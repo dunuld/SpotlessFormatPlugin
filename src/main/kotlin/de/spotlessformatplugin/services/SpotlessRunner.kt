@@ -20,7 +20,6 @@ import com.intellij.psi.PsiManager
 import de.spotlessformatplugin.SpotlessBundle
 import de.spotlessformatplugin.services.formatters.EclipseFormatter
 import de.spotlessformatplugin.services.formatters.GoogleJavaFormatFormatter
-import de.spotlessformatplugin.services.formatters.PrettierFormatter
 import de.spotlessformatplugin.services.formatters.SpotlessConfigFormatter
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 import kotlinx.coroutines.CoroutineScope
@@ -32,7 +31,7 @@ import kotlinx.coroutines.withContext
 /**
  * Formats files in three phases:
  * 1. take a snapshot of the document (text + modification stamp) in a read action,
- * 2. compute the formatted text in the background (may take seconds, e.g. Prettier),
+ * 2. compute the formatted text in the background (may take a while for large files),
  * 3. apply the result as minimal edits in a write command - but only if the document has not been changed in the
  *    meantime, so nothing the user typed while formatting is lost.
  */
@@ -43,7 +42,6 @@ class SpotlessRunner(private val project: Project, private val coroutineScope: C
     private val configResolver = SpotlessConfigResolver()
     private val validator = SpotlessSettingsValidator(project, notifier)
     private val eclipseFormatter = EclipseFormatter(project, notifier)
-    private val prettierFormatter = PrettierFormatter(project, notifier)
     private val googleJavaFormatFormatter = GoogleJavaFormatFormatter(notifier)
     private val spotlessConfigFormatter = SpotlessConfigFormatter(notifier)
 
@@ -129,8 +127,6 @@ class SpotlessRunner(private val project: Project, private val coroutineScope: C
             when (settings.formatterType) {
                 SpotlessFormatSettings.FormatterType.ECLIPSE ->
                     eclipseFormatter.format(file, snapshot.text, settings, snapshot.javaRelease)
-                SpotlessFormatSettings.FormatterType.PRETTIER ->
-                    prettierFormatter.format(file, snapshot.text, settings)
                 SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT ->
                     googleJavaFormatFormatter.format(file, snapshot.text, settings)
             }

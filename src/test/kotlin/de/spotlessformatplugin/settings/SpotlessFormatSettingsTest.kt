@@ -129,3 +129,25 @@ class SpotlessFormatSettingsStateTest : junit.framework.TestCase() {
         assertFalse(state.isSupportedExtension(null))
     }
 }
+
+class SpotlessFormatSettingsMigrationTest : com.intellij.testFramework.fixtures.BasePlatformTestCase() {
+
+    /** Prettier support was removed; projects that still have it stored must load without errors. */
+    fun testStoredPrettierSettingsFallBackToDefaults() {
+        val element = com.intellij.openapi.util.JDOMUtil.load(
+            """
+            <State>
+              <option name="formatterType" value="PRETTIER" />
+              <option name="prettierConfigPath" value=".prettierrc" />
+              <option name="executeOnSave" value="true" />
+            </State>
+            """.trimIndent()
+        )
+        val state = com.intellij.util.xmlb.XmlSerializer.deserialize(element, SpotlessFormatSettings.State::class.java)
+        val settings = SpotlessFormatSettings.getInstance(project)
+        settings.loadState(state)
+
+        assertEquals(SpotlessFormatSettings.FormatterType.ECLIPSE, settings.state.formatterType)
+        assertTrue(settings.state.executeOnSave)
+    }
+}
