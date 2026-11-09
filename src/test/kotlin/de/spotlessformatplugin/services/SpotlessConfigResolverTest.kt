@@ -1,5 +1,6 @@
 package de.spotlessformatplugin.services
 
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 import java.io.File
@@ -7,86 +8,80 @@ import java.io.File
 class SpotlessConfigResolverTest : BasePlatformTestCase() {
 
     private val resolver = SpotlessConfigResolver()
+    private lateinit var tempDir: File
+
+    override fun setUp() {
+        super.setUp()
+        tempDir = java.nio.file.Files.createTempDirectory("spotlessTest").toFile()
+    }
+
+    override fun tearDown() {
+        try {
+            tempDir.deleteRecursively()
+        } finally {
+            super.tearDown()
+        }
+    }
+
+    private fun settings(path: String, enabled: Boolean = true) = SpotlessFormatSettings.State().apply {
+        useSpotlessConfig = enabled
+        spotlessConfigPath = path
+    }
+
+    private fun vFile(file: File) = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file)!!
 
     fun testResolveConfigPathDisabled() {
-        val settings = SpotlessFormatSettings.State()
-        settings.useSpotlessConfig = false
-        settings.spotlessConfigPath = "spotless.gradle"
-
         val psiFile = myFixture.configureByText("Test.java", "class Test {}")
-        val resolved = resolver.resolveConfigPath(settings, psiFile.virtualFile)
-
-        assertNull(resolved)
+        assertNull(resolver.resolveConfigPath(settings("java.importorder", enabled = false), psiFile.virtualFile, null, null))
     }
 
     fun testResolveConfigPathBlank() {
-        val settings = SpotlessFormatSettings.State()
-        settings.useSpotlessConfig = true
-        settings.spotlessConfigPath = "  "
-
         val psiFile = myFixture.configureByText("Test.java", "class Test {}")
-        val resolved = resolver.resolveConfigPath(settings, psiFile.virtualFile)
-
-        assertNull(resolved)
+        assertNull(resolver.resolveConfigPath(settings("  "), psiFile.virtualFile, null, null))
     }
 
     fun testResolveConfigPathAbsolute() {
-        val tempDir = java.nio.file.Files.createTempDirectory("spotlessTest").toFile()
-        try {
-            val configFile = File(tempDir, "abs-spotless.xml")
-            configFile.createNewFile()
+        val configFile = File(tempDir, "abs.importorder").apply { createNewFile() }
+        val psiFile = myFixture.configureByText("Test.java", "class Test {}")
 
-            val settings = SpotlessFormatSettings.State()
-            settings.useSpotlessConfig = true
-            settings.spotlessConfigPath = configFile.absolutePath
-
-            val psiFile = myFixture.configureByText("Test.java", "class Test {}")
-            val resolved = resolver.resolveConfigPath(settings, psiFile.virtualFile)
-
-            assertEquals(configFile.absolutePath, resolved)
-        } finally {
-            tempDir.deleteRecursively()
-        }
+        assertEquals(configFile.absolutePath, resolver.resolveConfigPath(settings(configFile.absolutePath), psiFile.virtualFile, null, null))
     }
 
-    fun testResolveConfigPathHierarchical() {
-        val tempDir = java.nio.file.Files.createTempDirectory("spotlessTest").toFile()
-        try {
-            val rootDir = File(tempDir, "projectRoot")
-            rootDir.mkdirs()
-            val subDir = File(rootDir, "subModule")
-            subDir.mkdirs()
+    fun testResolveConfigPathHierarchicalWithinBoundary() {
+        val rootDir = File(tempDir, "projectRoot")
+        val subDir = File(rootDir, "subModule/src").apply { mkdirs() }
+        val configFile = File(rootDir, "java.importorder").apply { createNewFile() }
+        val javaFile = File(subDir, "Test.java").apply { createNewFile() }
 
-            val configFile = File(rootDir, "spotless.gradle")
-            configFile.createNewFile()
+        val resolved = resolver.resolveConfigPath(settings("java.importorder"), vFile(javaFile), vFile(rootDir), rootDir.absolutePath)
 
-            val javaFile = File(subDir, "Test.java")
-            javaFile.createNewFile()
+        assertEquals(configFile.absolutePath, resolved)
+    }
 
-            val vFile = com.intellij.openapi.vfs.LocalFileSystem.getInstance().refreshAndFindFileByIoFile(javaFile)
-            assertNotNull(vFile)
+    fun testSearchStopsAtBoundary() {
+        // Config file above the project root must not be picked up.
+        File(tempDir, "java.importorder").createNewFile()
+        val rootDir = File(tempDir, "projectRoot")
+        val subDir = File(rootDir, "src").apply { mkdirs() }
+        val javaFile = File(subDir, "Test.java").apply { createNewFile() }
 
-            val settings = SpotlessFormatSettings.State()
-            settings.useSpotlessConfig = true
-            settings.spotlessConfigPath = "spotless.gradle"
+        val resolved = resolver.resolveConfigPath(settings("java.importorder"), vFile(javaFile), vFile(rootDir), rootDir.absolutePath)
 
-            val resolved = resolver.resolveConfigPath(settings, vFile!!)
+        assertNull(resolved)
+    }
 
-            assertNotNull(resolved)
-            assertEquals(configFile.absolutePath, resolved)
-        } finally {
-            tempDir.deleteRecursively()
-        }
+    fun testFallsBackToProjectRelativePath() {
+        val rootDir = File(tempDir, "projectRoot")
+        val configFile = File(rootDir, "config/java.importorder").apply { parentFile.mkdirs(); createNewFile() }
+        val javaFile = File(rootDir, "src/Test.java").apply { parentFile.mkdirs(); createNewFile() }
+
+        val resolved = resolver.resolveConfigPath(settings("config/java.importorder"), vFile(javaFile), vFile(rootDir), rootDir.absolutePath)
+
+        assertEquals(configFile.absolutePath, resolved)
     }
 
     fun testResolveConfigPathNotFound() {
-        val settings = SpotlessFormatSettings.State()
-        settings.useSpotlessConfig = true
-        settings.spotlessConfigPath = "non-existent-config.gradle"
-
         val psiFile = myFixture.configureByText("Test.java", "class Test {}")
-        val resolved = resolver.resolveConfigPath(settings, psiFile.virtualFile)
-
-        assertNull(resolved)
+        assertNull(resolver.resolveConfigPath(settings("non-existent.importorder"), psiFile.virtualFile, null, tempDir.absolutePath))
     }
 }

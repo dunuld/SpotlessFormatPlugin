@@ -4,6 +4,7 @@ import com.intellij.ide.actionsOnSave.ActionOnSaveContext
 import com.intellij.ide.actionsOnSave.ActionOnSaveInfo
 import com.intellij.ide.actionsOnSave.ActionOnSaveInfoProvider
 import com.intellij.ui.components.ActionLink
+import de.spotlessformatplugin.SpotlessBundle
 import de.spotlessformatplugin.settings.SpotlessFormatConfigurable
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 
@@ -21,7 +22,7 @@ class SpotlessActionOnSaveInfo(actionOnSaveContext: ActionOnSaveContext) : Actio
         return context.settings.find(SpotlessFormatConfigurable::class.java)
     }
 
-    override fun getActionOnSaveName(): String = "Format changed files with Spotless"
+    override fun getActionOnSaveName(): String = SpotlessBundle.message("actions.on.save.name")
 
     override fun isActionOnSaveEnabled(): Boolean {
         val configurable = getConfigurable()

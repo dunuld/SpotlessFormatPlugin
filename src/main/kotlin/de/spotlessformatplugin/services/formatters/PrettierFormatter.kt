@@ -1,163 +1,186 @@
 package de.spotlessformatplugin.services.formatters
 
+import com.intellij.ide.trustedProjects.TrustedProjects
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.SystemInfo
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VirtualFile
-import de.spotlessformatplugin.services.DocumentTextService
+import de.spotlessformatplugin.SpotlessBundle
 import de.spotlessformatplugin.services.SpotlessNotifier
+import de.spotlessformatplugin.services.SpotlessPaths
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
-class PrettierFormatter(
+/**
+ * Formats files with an external Prettier installation (project `node_modules`, global installation or `npx`).
+ *
+ * Prettier executes code from the project (local binaries, `prettier.config.js`, plugins), so it is never run in
+ * projects that are not trusted. `npx` is invoked with `--no-install` so nothing is downloaded implicitly.
+ */
+class PrettierFormatter internal constructor(
     private val project: Project,
-    private val documentTextService: DocumentTextService,
-    private val notifier: SpotlessNotifier
+    private val notifier: SpotlessNotifier,
+    private val isProjectTrusted: () -> Boolean,
+    private val additionalSearchDirs: List<File>,
+    private val timeoutSeconds: Long
 ) {
+    constructor(project: Project, notifier: SpotlessNotifier) : this(
+        project,
+        notifier,
+        { TrustedProjects.isProjectTrusted(project) },
+        emptyList(),
+        DEFAULT_TIMEOUT_SECONDS
+    )
 
-    private data class PrettierExecutable(
+    internal data class PrettierExecutable(
         val command: List<String>,
         val nodeBinDir: String? = null
     )
 
-    fun format(virtualFile: VirtualFile, settings: SpotlessFormatSettings.State) {
-        val text = documentTextService.getFileText(virtualFile) ?: return
-        val formatted = runPrettier(virtualFile, text, settings.prettierConfigPath)
-        if (formatted != null) {
-            documentTextService.updateDocumentText(virtualFile, formatted, "Prettier Formatting")
-            notifier.notifyInfo("Applying Prettier using config: ${settings.prettierConfigPath}")
+    /** @return the formatted text (with `\n` line separators) or `null` if formatting failed. */
+    fun format(virtualFile: VirtualFile, text: String, settings: SpotlessFormatSettings.State): String? {
+        if (!isProjectTrusted()) {
+            notifier.notifyWarning(SpotlessBundle.message("notification.prettier.untrusted"))
+            return null
         }
+        val configFile = SpotlessPaths.resolve(project, settings.prettierConfigPath)
+        val formatted = runPrettier(virtualFile, text, configFile) ?: return null
+        notifier.notifySuccess(SpotlessBundle.message("notification.success.prettier", virtualFile.name))
+        return StringUtil.convertLineSeparators(formatted)
     }
 
-    private fun findPrettierExecutable(): PrettierExecutable? {
-        val isWindows = System.getProperty("os.name")?.lowercase()?.contains("win") == true
+    internal fun findPrettierExecutable(): PrettierExecutable? {
+        val isWindows = SystemInfo.isWindows
         val projectBase = project.basePath
 
-        // 1. Check local node_modules in project
+        // 1. Project-local installation
         if (projectBase != null) {
             val localPrettier = File(projectBase, if (isWindows) "node_modules/.bin/prettier.cmd" else "node_modules/.bin/prettier")
-            if (localPrettier.exists() && (isWindows || localPrettier.canExecute())) {
+            if (isExecutable(localPrettier, isWindows)) {
                 return PrettierExecutable(listOf(localPrettier.absolutePath))
             }
         }
 
-        // Candidate directories where node/npx/prettier might reside
-        val candidateNodeDirs = mutableListOf<File>()
-        val pathEnv = System.getenv("PATH") ?: ""
-        pathEnv.split(File.pathSeparator).forEach {
-            if (it.isNotBlank()) candidateNodeDirs.add(File(it))
-        }
+        val candidateDirs = candidateNodeDirs()
 
-        val userHome = System.getProperty("user.home") ?: ""
-        listOf(
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-            "/usr/bin",
-            "/bin",
-            "$userHome/.volta/bin",
-            "$userHome/.asdf/shims",
-            "$userHome/.nodenv/shims"
-        ).forEach { candidateNodeDirs.add(File(it)) }
-
-        // Search nvm versions: ~/.nvm/versions/node/*/bin
-        val nvmNodeDir = File(userHome, ".nvm/versions/node")
-        if (nvmNodeDir.exists() && nvmNodeDir.isDirectory) {
-            nvmNodeDir.listFiles()?.filter { it.isDirectory }?.sortedByDescending { it.name }?.forEach { versionDir ->
-                val binDir = File(versionDir, "bin")
-                if (binDir.exists() && binDir.isDirectory) {
-                    candidateNodeDirs.add(binDir)
-                }
-            }
-        }
-
-        // 2. Search for direct 'prettier' binary in candidate dirs
+        // 2. Global 'prettier' binary
         val prettierName = if (isWindows) "prettier.cmd" else "prettier"
-        for (dir in candidateNodeDirs) {
-            val file = File(dir, prettierName)
-            if (file.exists() && (isWindows || file.canExecute())) {
-                return PrettierExecutable(listOf(file.absolutePath), dir.absolutePath)
-            }
-        }
+        candidateDirs.firstNotNullOfOrNull { dir ->
+            File(dir, prettierName).takeIf { isExecutable(it, isWindows) }
+                ?.let { PrettierExecutable(listOf(it.absolutePath), dir.absolutePath) }
+        }?.let { return it }
 
-        // 3. Search for 'npx' binary in candidate dirs
+        // 3. 'npx' - never install packages implicitly
         val npxName = if (isWindows) "npx.cmd" else "npx"
-        for (dir in candidateNodeDirs) {
-            val file = File(dir, npxName)
-            if (file.exists() && (isWindows || file.canExecute())) {
-                return PrettierExecutable(listOf(file.absolutePath, "prettier"), dir.absolutePath)
-            }
+        return candidateDirs.firstNotNullOfOrNull { dir ->
+            File(dir, npxName).takeIf { isExecutable(it, isWindows) }
+                ?.let { PrettierExecutable(listOf(it.absolutePath, "--no-install", "prettier"), dir.absolutePath) }
         }
-
-        return null
     }
 
-    private fun runPrettier(virtualFile: VirtualFile, content: String, configPath: String?): String? {
+    private fun candidateNodeDirs(): List<File> {
+        val dirs = mutableListOf<File>()
+        dirs.addAll(additionalSearchDirs)
+        (System.getenv("PATH") ?: "").split(File.pathSeparator).filter { it.isNotBlank() }.forEach { dirs.add(File(it)) }
+
+        val userHome = System.getProperty("user.home") ?: ""
+        if (SystemInfo.isWindows) {
+            System.getenv("APPDATA")?.let { dirs.add(File(it, "npm")) }
+            System.getenv("ProgramFiles")?.let { dirs.add(File(it, "nodejs")) }
+            dirs.add(File(userHome, ".volta/bin"))
+        } else {
+            listOf(
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+                "/usr/bin",
+                "/bin",
+                "$userHome/.volta/bin",
+                "$userHome/.asdf/shims",
+                "$userHome/.nodenv/shims"
+            ).forEach { dirs.add(File(it)) }
+
+            val nvmNodeDir = File(userHome, ".nvm/versions/node")
+            nvmNodeDir.listFiles()?.filter { it.isDirectory }?.sortedByDescending { it.name }?.forEach { versionDir ->
+                File(versionDir, "bin").takeIf { it.isDirectory }?.let { dirs.add(it) }
+            }
+        }
+        return dirs.distinct()
+    }
+
+    private fun isExecutable(file: File, isWindows: Boolean): Boolean =
+        file.isFile && (isWindows || file.canExecute())
+
+    private fun runPrettier(virtualFile: VirtualFile, content: String, configFile: File?): String? {
         val prettierExec = findPrettierExecutable()
         if (prettierExec == null) {
-            notifier.notifyError("Prettier executable not found. Please ensure prettier or npx is installed.")
+            notifier.notifyError(SpotlessBundle.message("notification.prettier.not.found"))
             return null
         }
 
-        val command = mutableListOf<String>()
-        command.addAll(prettierExec.command)
+        val command = prettierExec.command.toMutableList()
         command.add("--stdin-filepath")
-        command.add(virtualFile.name)
-
-        if (!configPath.isNullOrBlank()) {
-            val configFile = File(configPath)
-            if (configFile.exists()) {
-                command.add("--config")
-                command.add(configFile.absolutePath)
-            }
+        command.add(stdinFilePath(virtualFile))
+        if (configFile != null && configFile.isFile) {
+            command.add("--config")
+            command.add(configFile.absolutePath)
         }
 
         val processBuilder = ProcessBuilder(command)
-        val workingDir = project.basePath?.let { File(it) } ?: File(virtualFile.path).parentFile
-        if (workingDir != null && workingDir.exists()) {
-            processBuilder.directory(workingDir)
-        }
+        val workingDir = project.basePath?.let(::File)?.takeIf { it.isDirectory }
+            ?: virtualFile.parent?.takeIf { it.isInLocalFileSystem }?.let { File(it.path) }
+        workingDir?.let { processBuilder.directory(it) }
 
         prettierExec.nodeBinDir?.let { nodeDir ->
             val env = processBuilder.environment()
-            val currentPath = env["PATH"] ?: System.getenv("PATH") ?: ""
-            env["PATH"] = "$nodeDir:$currentPath"
+            env["PATH"] = prependToPath(nodeDir, env["PATH"] ?: System.getenv("PATH"))
         }
 
+        var process: Process? = null
         return try {
-            val process = processBuilder.start()
+            val started = processBuilder.start()
+            process = started
 
-            process.outputStream.bufferedWriter(Charsets.UTF_8).use { writer ->
-                writer.write(content)
-                writer.flush()
-            }
+            // Read output concurrently so the process can never block on a full pipe.
+            val stdoutFuture = CompletableFuture.supplyAsync { started.inputStream.bufferedReader(Charsets.UTF_8).readText() }
+            val stderrFuture = CompletableFuture.supplyAsync { started.errorStream.bufferedReader(Charsets.UTF_8).readText() }
 
-            val stdoutFuture = CompletableFuture.supplyAsync {
-                process.inputStream.bufferedReader(Charsets.UTF_8).readText()
-            }
-            val stderrFuture = CompletableFuture.supplyAsync {
-                process.errorStream.bufferedReader(Charsets.UTF_8).readText()
-            }
+            started.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(content) }
 
-            val finished = process.waitFor(15, TimeUnit.SECONDS)
-            if (!finished) {
-                process.destroyForcibly()
-                notifier.notifyError("Prettier timed out while formatting ${virtualFile.name}.")
+            if (!started.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+                started.destroyForcibly()
+                notifier.notifyError(SpotlessBundle.message("notification.prettier.timeout", virtualFile.name, timeoutSeconds))
                 return null
             }
 
-            val exitCode = process.exitValue()
-            val stdout = stdoutFuture.get(2, TimeUnit.SECONDS)
-            val stderr = stderrFuture.get(2, TimeUnit.SECONDS)
-
-            if (exitCode == 0) {
+            val stdout = stdoutFuture.get(5, TimeUnit.SECONDS)
+            val stderr = stderrFuture.get(5, TimeUnit.SECONDS)
+            if (started.exitValue() == 0) {
                 stdout
             } else {
-                notifier.notifyError("Prettier failed for ${virtualFile.name}: ${stderr.ifBlank { stdout }}")
+                notifier.notifyError(SpotlessBundle.message("notification.prettier.failed", virtualFile.name, stderr.ifBlank { stdout }.trim()))
                 null
             }
+        } catch (e: InterruptedException) {
+            process?.destroyForcibly()
+            Thread.currentThread().interrupt()
+            null
         } catch (e: Exception) {
-            notifier.notifyError("Error executing Prettier: ${e.message}")
+            process?.destroyForcibly()
+            notifier.notifyError(SpotlessBundle.message("notification.prettier.execution.error", e.message ?: e.javaClass.simpleName))
             null
         }
+    }
+
+    companion object {
+        const val DEFAULT_TIMEOUT_SECONDS = 15L
+
+        /** Full path so Prettier resolves `.prettierrc`, `overrides` and `.prettierignore` relative to the file. */
+        internal fun stdinFilePath(virtualFile: VirtualFile): String =
+            if (virtualFile.isInLocalFileSystem) File(virtualFile.path).absolutePath else virtualFile.name
+
+        internal fun prependToPath(dir: String, currentPath: String?, separator: String = File.pathSeparator): String =
+            if (currentPath.isNullOrEmpty()) dir else "$dir$separator$currentPath"
     }
 }

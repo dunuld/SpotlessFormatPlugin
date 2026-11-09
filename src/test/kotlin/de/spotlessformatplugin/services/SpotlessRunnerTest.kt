@@ -1,6 +1,11 @@
 package de.spotlessformatplugin.services
 
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.testFramework.LightVirtualFile
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import kotlinx.coroutines.runBlocking
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 import java.io.File
 
@@ -64,7 +69,6 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
     fun testFormatFileWithGoogleJavaFormatIntegration() {
         val settings = SpotlessFormatSettings.getInstance(project)
         settings.state.formatterType = SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT
-        settings.state.gjfVersion = "1.17.0"
 
         val before = "public class Test { public void test() {} }"
         val psiFile = myFixture.configureByText("Test.java", before)
@@ -76,12 +80,8 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
     }
 
     fun testFormatFileWithSpotlessConfigIntegration() {
-        val configFile = File(tempDir, "spotless.gradle")
-        configFile.createNewFile()
-
         val settings = SpotlessFormatSettings.getInstance(project)
         settings.state.useSpotlessConfig = true
-        settings.state.spotlessConfigPath = configFile.absolutePath
 
         val before = "public class Test {   \n    int a = 1;   \n}"
         val psiFile = myFixture.configureByText("Test.java", before)
@@ -100,5 +100,69 @@ class SpotlessRunnerTest : BasePlatformTestCase() {
         spotlessRunner.formatFile(psiFile.virtualFile)
 
         assertEquals(before, psiFile.text)
+    }
+
+    private fun configureEclipse() {
+        val formatterFile = File(tempDir, "formatter.xml")
+        formatterFile.writeText(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <profiles version="13">
+                <profile kind="CodeFormatterProfile" name="Test" version="13">
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="4"/>
+                    <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="4"/>
+                </profile>
+            </profiles>
+            """.trimIndent()
+        )
+        val importOrderFile = File(tempDir, "import.order").apply { createNewFile() }
+        val state = SpotlessFormatSettings.getInstance(project).state
+        state.formatterXmlPath = formatterFile.absolutePath
+        state.importOrderPath = importOrderFile.absolutePath
+    }
+
+    fun testResultIsDiscardedWhenDocumentChangedDuringFormatting() {
+        configureEclipse()
+        val psiFile = myFixture.configureByText("Test.java", "public class Test {\nint a;\n}")
+        val document = myFixture.editor.document
+
+        val snapshot = spotlessRunner.createSnapshot(psiFile.virtualFile)!!
+        val formatted = spotlessRunner.computeFormattedText(snapshot)!!
+
+        // The user types while the formatter is running.
+        WriteCommandAction.runWriteCommandAction(project) {
+            document.insertString(document.textLength, "// typed while formatting")
+        }
+
+        val applied = WriteCommandAction.writeCommandAction(project)
+            .compute<Boolean, RuntimeException> { spotlessRunner.applyIfUnchanged(snapshot, formatted) }
+
+        assertFalse(applied)
+        assertEquals("public class Test {\nint a;\n}// typed while formatting", document.text)
+    }
+
+    fun testFormatInBackgroundAppliesResult() {
+        configureEclipse()
+        val psiFile = myFixture.configureByText("Test.java", "public class Test {\nint a;\n}")
+
+        val future = ApplicationManager.getApplication().executeOnPooledThread<Boolean> {
+            runBlocking { spotlessRunner.formatInBackground(psiFile.virtualFile) }
+        }
+        assertTrue(PlatformTestUtil.waitForFuture(future, 60_000))
+
+        assertEquals("public class Test {\n    int a;\n}\n", myFixture.editor.document.text)
+    }
+
+    fun testOnlySupportedProjectFilesAreEligibleForSave() {
+        val javaFile = myFixture.configureByText("Test.java", "class Test {}").virtualFile
+        val textFile = myFixture.configureByText("notes.txt", "text").virtualFile
+        val externalFile = LightVirtualFile("External.java", "class External {}")
+
+        ApplicationManager.getApplication().runReadAction {
+            assertTrue(spotlessRunner.isEligibleForSave(javaFile))
+            assertFalse(spotlessRunner.isEligibleForSave(textFile))
+            assertFalse(spotlessRunner.isEligibleForSave(externalFile))
+        }
     }
 }
