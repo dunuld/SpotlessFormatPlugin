@@ -74,7 +74,7 @@ Open **Settings** (`Cmd+,` / `Ctrl+Alt+S`) > **Spotless Formatter** (or search f
 ```
 Spotless Formatter Settings
 ├── [x] Execute Spotless on save for changed files
-├── [ ] Use Spotless when running IntelliJ's Reformat Code action
+├── [ ] Use Spotless when running IntelliJ's reformat code action
 ├── Mode: [ Formatter | Generic Spotless steps ]
 │
 ├── (Mode: Formatter)
@@ -102,7 +102,7 @@ All paths can be absolute, relative to the project root, or use `$PROJECT_DIR$`.
 ### 1. General Controls
 - **Execute Spotless on save for changed files**: When enabled, project files matching the supported extensions are formatted when you save them explicitly (for example with `Cmd+S` / `Ctrl+S`).
   > 💡 **Actions on Save**: You can also toggle this option directly under **Settings > Tools > Actions on Save > "Format changed files with Spotless"**.
-- **Use Spotless when running IntelliJ's Reformat Code action**: When enabled, pressing `Cmd+Alt+L` (macOS) / `Ctrl+Alt+L` (Windows/Linux) formats the selected files with Spotless instead of the standard IDE formatter. This only applies when every selected file has a supported extension; otherwise the IDE formatter runs.
+- **Use Spotless when running IntelliJ's reformat code action**: When enabled, pressing `Cmd+Alt+L` (macOS) / `Ctrl+Alt+L` (Windows/Linux) formats the selected files with Spotless instead of the standard IDE formatter. This only applies when every selected file has a supported extension; otherwise the IDE formatter runs.
 - **Supported Extensions**: Comma-separated list of file extensions to format (e.g., `java,xml,js,ts,json,kt`).
 - **Show error notifications**: Balloon notifications for configuration problems and formatting errors (on by default).
 - **Show a notification after each successful formatting**: Off by default, so saving does not produce a balloon every time.

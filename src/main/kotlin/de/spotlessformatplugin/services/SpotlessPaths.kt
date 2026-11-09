@@ -8,7 +8,7 @@ import java.io.File
  * resolved against the project root (not the IDE's working directory), so settings can be shared through VCS.
  */
 object SpotlessPaths {
-    const val PROJECT_DIR_MACRO = "\$PROJECT_DIR\$"
+    const val PROJECT_DIR_MACRO = $$"$PROJECT_DIR$"
 
     fun resolve(project: Project, path: String?): File? = resolve(project.basePath, path)
 
