@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-09
+
 ### Fixed
 
 - Format on save now runs as an IntelliJ *Action on Save*: the formatted content is what gets saved, the file is no longer left modified, and only files of the current project are formatted (previously every open project formatted every saved file with its own settings).
