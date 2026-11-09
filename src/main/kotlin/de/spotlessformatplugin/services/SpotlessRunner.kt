@@ -1,9 +1,9 @@
 package de.spotlessformatplugin.services
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.readAction
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.command.writeCommandAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withContext
 
 /**
  * Formats files in three phases:
@@ -86,19 +87,20 @@ class SpotlessRunner(private val project: Project, private val coroutineScope: C
     suspend fun formatInBackground(file: VirtualFile): Boolean {
         val snapshot = readAction { createSnapshot(file) } ?: return false
         val formatted = runInterruptible(Dispatchers.IO) { computeFormattedText(snapshot) } ?: return false
-        return writeCommandAction(project, SpotlessBundle.message("command.name")) {
-            applyIfUnchanged(snapshot, formatted)
-        }
+        return withContext(Dispatchers.EDT) { applyInWriteCommand(snapshot, formatted) }
     }
 
     /** Blocking variant for tests and callers that are already allowed to block. */
     fun formatSynchronously(file: VirtualFile): Boolean {
         val snapshot = ApplicationManager.getApplication().runReadAction<Snapshot?> { createSnapshot(file) } ?: return false
         val formatted = computeFormattedText(snapshot) ?: return false
-        return WriteCommandAction.writeCommandAction(project)
+        return applyInWriteCommand(snapshot, formatted)
+    }
+
+    private fun applyInWriteCommand(snapshot: Snapshot, formatted: String): Boolean =
+        WriteCommandAction.writeCommandAction(project)
             .withName(SpotlessBundle.message("command.name"))
             .compute<Boolean, RuntimeException> { applyIfUnchanged(snapshot, formatted) }
-    }
 
     internal fun createSnapshot(file: VirtualFile): Snapshot? {
         if (!file.isValid || file.isDirectory) return null

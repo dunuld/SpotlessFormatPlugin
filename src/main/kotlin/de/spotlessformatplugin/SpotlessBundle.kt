@@ -6,7 +6,7 @@ import org.jetbrains.annotations.PropertyKey
 
 private const val BUNDLE = "messages.SpotlessBundle"
 
-object SpotlessBundle : DynamicBundle(BUNDLE) {
+object SpotlessBundle : DynamicBundle(SpotlessBundle::class.java, BUNDLE) {
     @JvmStatic
     @Nls
     fun message(@PropertyKey(resourceBundle = BUNDLE) key: String, vararg params: Any): String =
