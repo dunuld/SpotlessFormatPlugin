@@ -1,5 +1,6 @@
 package de.spotlessformatplugin.settings
 
+import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.project.Project
@@ -7,6 +8,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.DocumentAdapter
+import com.intellij.ui.dsl.builder.COLUMNS_LARGE
 import com.intellij.ui.dsl.builder.Cell
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.layout.ComponentPredicate
@@ -95,12 +97,11 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
 
             group(message("settings.group.eclipse")) {
                 row(message("settings.eclipse.xml.label")) {
-                    formatterXmlField = textFieldWithBrowseButton(
-                        project = project,
-                        fileChooserDescriptor = FileChooserDescriptorFactory.singleFile()
+                    formatterXmlField = cell(fileField(
+                        FileChooserDescriptorFactory.singleFile()
                             .withExtensionFilter("xml")
                             .withTitle(message("settings.eclipse.xml.chooser.title"))
-                    ).comment(message("settings.eclipse.xml.comment"))
+                    )).comment(message("settings.eclipse.xml.comment"))
                         .validatePath()
                         .enabledIf(spotlessUsed)
                         .component
@@ -112,11 +113,10 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
                         .component
                 }
                 row(message("settings.import.order.label")) {
-                    importOrderField = textFieldWithBrowseButton(
-                        project = project,
-                        fileChooserDescriptor = FileChooserDescriptorFactory.singleFile()
+                    importOrderField = cell(fileField(
+                        FileChooserDescriptorFactory.singleFile()
                             .withTitle(message("settings.import.order.chooser.title"))
-                    ).comment(message("settings.path.comment"))
+                    )).comment(message("settings.path.comment"))
                         .validatePath()
                         .enabledIf(spotlessUsed)
                         .component
@@ -126,11 +126,10 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
 
             group(message("settings.group.prettier")) {
                 row(message("settings.prettier.config.label")) {
-                    prettierConfigField = textFieldWithBrowseButton(
-                        project = project,
-                        fileChooserDescriptor = FileChooserDescriptorFactory.singleFile()
+                    prettierConfigField = cell(fileField(
+                        FileChooserDescriptorFactory.singleFile()
                             .withTitle(message("settings.prettier.config.chooser.title"))
-                    ).comment(message("settings.prettier.config.comment"))
+                    )).comment(message("settings.prettier.config.comment"))
                         .validatePath()
                         .enabledIf(spotlessUsed)
                         .component
@@ -150,11 +149,10 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
 
             group(message("settings.group.generic")) {
                 row(message("settings.generic.import.order.label")) {
-                    spotlessConfigField = textFieldWithBrowseButton(
-                        project = project,
-                        fileChooserDescriptor = FileChooserDescriptorFactory.singleFile()
+                    spotlessConfigField = cell(fileField(
+                        FileChooserDescriptorFactory.singleFile()
                             .withTitle(message("settings.import.order.chooser.title"))
-                    ).comment(message("settings.generic.comment"))
+                    )).comment(message("settings.generic.comment"))
                         .enabledIf(spotlessUsed)
                         .component
                 }
@@ -190,6 +188,13 @@ class SpotlessFormatConfigurable(private val project: Project) : SearchableConfi
 
         return rootPanel
     }
+
+    /** File path field with a file chooser (stable API instead of the experimental Row.textFieldWithBrowseButton). */
+    private fun fileField(descriptor: FileChooserDescriptor): TextFieldWithBrowseButton =
+        TextFieldWithBrowseButton().apply {
+            textField.columns = COLUMNS_LARGE
+            addBrowseFolderListener(project, descriptor)
+        }
 
     private fun Cell<TextFieldWithBrowseButton>.validatePath(): Cell<TextFieldWithBrowseButton> =
         validationOnInput {
