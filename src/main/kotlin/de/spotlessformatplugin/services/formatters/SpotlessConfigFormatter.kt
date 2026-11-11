@@ -7,42 +7,55 @@ import com.diffplug.spotless.generic.EndWithNewlineStep
 import com.diffplug.spotless.generic.TrimTrailingWhitespaceStep
 import com.diffplug.spotless.java.ImportOrderStep
 import com.intellij.openapi.vfs.VirtualFile
-import de.spotlessformatplugin.services.DocumentTextService
+import de.spotlessformatplugin.SpotlessBundle
 import de.spotlessformatplugin.services.SpotlessNotifier
 import java.io.File
 
-class SpotlessConfigFormatter(
-    private val documentTextService: DocumentTextService,
-    private val notifier: SpotlessNotifier
-) {
+/**
+ * Generic Spotless steps: trims trailing whitespace, ensures a final newline and - for Java files - applies an
+ * optional import order file. Spotless build configuration (e.g. `spotless.gradle`) is NOT evaluated.
+ */
+class SpotlessConfigFormatter(private val notifier: SpotlessNotifier) {
 
-    fun format(virtualFile: VirtualFile, configPath: String) {
-        val text = documentTextService.getFileText(virtualFile) ?: return
-        try {
+    /**
+     * @param importOrderPath resolved path of the import order file, or `null`/blank if none is configured.
+     * @return the formatted text or `null` if formatting failed.
+     */
+    fun format(virtualFile: VirtualFile, text: String, importOrderPath: String?): String? {
+        return try {
             val steps = mutableListOf<FormatterStep>()
-            val configFile = File(configPath)
-            val extension = virtualFile.extension ?: ""
-
             steps.add(TrimTrailingWhitespaceStep.create())
             steps.add(EndWithNewlineStep.create())
 
-            if (extension.equals("java", ignoreCase = true) && configFile.exists()) {
-                if (configPath.endsWith(".order") || configPath.endsWith(".importorder")) {
-                    steps.add(ImportOrderStep.forJava().createFrom(configFile))
+            val importOrderFile = importOrderPath?.takeIf { it.isNotBlank() }?.let(::File)
+            if (importOrderFile != null && virtualFile.extension.equals("java", ignoreCase = true) && importOrderFile.isFile) {
+                if (isBuildConfiguration(importOrderFile)) {
+                    notifier.notifyWarning(SpotlessBundle.message("notification.generic.build.config.ignored", importOrderFile.name))
+                } else {
+                    steps.add(ImportOrderStep.forJava().createFrom(importOrderFile))
                 }
             }
 
             val formatter = SpotlessFormatter.builder()
-                .lineEndingsPolicy(LineEnding.PLATFORM_NATIVE.createPolicy())
+                .lineEndingsPolicy(LineEnding.UNIX.createPolicy())
                 .encoding(Charsets.UTF_8)
                 .steps(steps)
                 .build()
 
-            val formatted = formatter.compute(text, File(virtualFile.path))
-            documentTextService.updateDocumentText(virtualFile, formatted, "Spotless Formatting")
-            notifier.notifyInfo("Using Spotless config: $configPath")
+            val formatted = formatter.use { it.compute(text, File(virtualFile.path)) }
+            notifier.notifySuccess(SpotlessBundle.message("notification.success.generic", virtualFile.name))
+            formatted
         } catch (e: Exception) {
-            notifier.notifyError("Spotless formatting failed for ${virtualFile.name}: ${e.message}")
+            notifier.notifyError(SpotlessBundle.message("notification.formatting.failed", virtualFile.name, e.message ?: e.javaClass.simpleName))
+            null
         }
+    }
+
+    companion object {
+        private val BUILD_CONFIG_EXTENSIONS = setOf("gradle", "kts", "xml", "groovy")
+
+        /** Earlier versions suggested pointing this setting to a Spotless build script; those cannot be evaluated. */
+        fun isBuildConfiguration(file: File): Boolean =
+            file.extension.lowercase() in BUILD_CONFIG_EXTENSIONS
     }
 }

@@ -13,7 +13,7 @@ class SpotlessSettingsValidatorTest : BasePlatformTestCase() {
         super.setUp()
         tempDir = java.nio.file.Files.createTempDirectory("spotlessTest").toFile()
         val notifier = SpotlessNotifier(project)
-        validator = SpotlessSettingsValidator(notifier)
+        validator = SpotlessSettingsValidator(project, notifier)
     }
 
     override fun tearDown() {
@@ -24,13 +24,13 @@ class SpotlessSettingsValidatorTest : BasePlatformTestCase() {
         }
     }
 
-    fun testValidateSpotlessConfigEmpty() {
+    fun testValidateGenericModeWithoutImportOrderIsValid() {
         val state = SpotlessFormatSettings.State()
         state.useSpotlessConfig = true
         state.spotlessConfigPath = ""
 
         val psiFile = myFixture.configureByText("Test.java", "class Test {}")
-        assertFalse(validator.validate(state, psiFile.virtualFile, null))
+        assertTrue(validator.validate(state, psiFile.virtualFile, null))
     }
 
     fun testValidateSpotlessConfigFileNotFound() {
@@ -102,36 +102,30 @@ class SpotlessSettingsValidatorTest : BasePlatformTestCase() {
         assertTrue(validator.validate(state, psiFile.virtualFile, null))
     }
 
-    fun testValidatePrettierMissingConfigFile() {
-        val state = SpotlessFormatSettings.State()
-        state.useSpotlessConfig = false
-        state.formatterType = SpotlessFormatSettings.FormatterType.PRETTIER
-        state.prettierConfigPath = "/non/existent/.prettierrc"
-
-        val psiFile = myFixture.configureByText("test.js", "const x = 1;")
-        assertFalse(validator.validate(state, psiFile.virtualFile, null))
-    }
-
-    fun testValidatePrettierValidConfigOrEmpty() {
-        val state = SpotlessFormatSettings.State()
-        state.useSpotlessConfig = false
-        state.formatterType = SpotlessFormatSettings.FormatterType.PRETTIER
-        state.prettierConfigPath = ""
-
-        val psiFile = myFixture.configureByText("test.js", "const x = 1;")
-        assertTrue(validator.validate(state, psiFile.virtualFile, null))
-    }
-
-    fun testValidateGoogleJavaFormatVersion() {
+    fun testGoogleJavaFormatNeedsNoConfiguration() {
         val state = SpotlessFormatSettings.State()
         state.useSpotlessConfig = false
         state.formatterType = SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT
-        state.gjfVersion = ""
 
         val psiFile = myFixture.configureByText("Test.java", "class Test {}")
-        assertFalse(validator.validate(state, psiFile.virtualFile, null))
-
-        state.gjfVersion = "1.17.0"
         assertTrue(validator.validate(state, psiFile.virtualFile, null))
+    }
+
+    fun testRelativeEclipsePathsAreResolvedAgainstProjectRoot() {
+        val baseDir = File(project.basePath!!)
+        val configDir = File(baseDir, "validator-config").apply { mkdirs() }
+        try {
+            File(configDir, "formatter.xml").writeText("<profiles/>")
+            File(configDir, "java.importorder").writeText("0=java")
+
+            val state = SpotlessFormatSettings.State()
+            state.formatterXmlPath = "validator-config/formatter.xml"
+            state.importOrderPath = "${SpotlessPaths.PROJECT_DIR_MACRO}/validator-config/java.importorder"
+
+            val psiFile = myFixture.configureByText("Test.java", "class Test {}")
+            assertTrue(validator.validate(state, psiFile.virtualFile, null))
+        } finally {
+            configDir.deleteRecursively()
+        }
     }
 }

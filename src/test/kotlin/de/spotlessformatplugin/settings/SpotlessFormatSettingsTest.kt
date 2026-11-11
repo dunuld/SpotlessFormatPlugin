@@ -95,3 +95,59 @@ class SpotlessFormatSettingsTest : BasePlatformTestCase() {
         }
     }
 }
+
+class SpotlessFormatSettingsStateTest : junit.framework.TestCase() {
+
+    fun testCopyIsIndependent() {
+        val state = SpotlessFormatSettings.State()
+        state.formatterXmlPath = "a.xml"
+        state.useSpotlessConfig = true
+
+        val copy = state.copy()
+        state.formatterXmlPath = "b.xml"
+
+        assertEquals("a.xml", copy.formatterXmlPath)
+        assertTrue(copy.useSpotlessConfig)
+    }
+
+    fun testDerivedModeFlagIsNotSerialized() {
+        val state = SpotlessFormatSettings.State()
+        state.configurationMode = SpotlessFormatSettings.ConfigurationMode.SPOTLESS
+        val xml = com.intellij.openapi.util.JDOMUtil.write(com.intellij.util.xmlb.XmlSerializer.serialize(state))
+
+        assertTrue(xml.contains("configurationMode"))
+        assertFalse(xml.contains("useSpotlessConfig"))
+    }
+
+    fun testSupportedExtensions() {
+        val state = SpotlessFormatSettings.State()
+        state.supportedExtensions = " java, .XML ,, ts "
+
+        assertEquals(listOf("java", "XML", "ts"), state.supportedExtensionList())
+        assertTrue(state.isSupportedExtension("xml"))
+        assertFalse(state.isSupportedExtension("kt"))
+        assertFalse(state.isSupportedExtension(null))
+    }
+}
+
+class SpotlessFormatSettingsMigrationTest : com.intellij.testFramework.fixtures.BasePlatformTestCase() {
+
+    /** Prettier support was removed; projects that still have it stored must load without errors. */
+    fun testStoredPrettierSettingsFallBackToDefaults() {
+        val element = com.intellij.openapi.util.JDOMUtil.load(
+            """
+            <State>
+              <option name="formatterType" value="PRETTIER" />
+              <option name="prettierConfigPath" value=".prettierrc" />
+              <option name="executeOnSave" value="true" />
+            </State>
+            """.trimIndent()
+        )
+        val state = com.intellij.util.xmlb.XmlSerializer.deserialize(element, SpotlessFormatSettings.State::class.java)
+        val settings = SpotlessFormatSettings.getInstance(project)
+        settings.loadState(state)
+
+        assertEquals(SpotlessFormatSettings.FormatterType.ECLIPSE, settings.state.formatterType)
+        assertTrue(settings.state.executeOnSave)
+    }
+}

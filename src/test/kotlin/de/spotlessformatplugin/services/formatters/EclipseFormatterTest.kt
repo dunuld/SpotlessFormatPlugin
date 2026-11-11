@@ -1,6 +1,10 @@
 package de.spotlessformatplugin.services.formatters
 
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiFile
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import de.spotlessformatplugin.services.DocumentUpdater
 import de.spotlessformatplugin.services.SpotlessNotifier
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 import java.io.File
@@ -15,6 +19,16 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         tempDir = java.nio.file.Files.createTempDirectory("spotlessTest").toFile()
         val notifier = SpotlessNotifier(project)
         eclipseFormatter = EclipseFormatter(project, notifier)
+    }
+
+    /** Formats the file's text and writes the result back so assertions can use psiFile.text. */
+    private fun format(psiFile: PsiFile, settings: SpotlessFormatSettings.State, javaRelease: Int? = null) {
+        val result = eclipseFormatter.format(psiFile.virtualFile, psiFile.text, settings, javaRelease) ?: return
+        WriteCommandAction.runWriteCommandAction(project) {
+            val document = PsiDocumentManager.getInstance(project).getDocument(psiFile)!!
+            DocumentUpdater.applyMinimalChanges(document, result)
+            PsiDocumentManager.getInstance(project).commitDocument(document)
+        }
     }
 
     override fun tearDown() {
@@ -55,7 +69,7 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         """.trimIndent()
 
         val psiFile = myFixture.configureByText("Test.java", before)
-        eclipseFormatter.format(psiFile.virtualFile, settings)
+        format(psiFile, settings)
 
         val after = "public class Test {\n    public void test() {\n        int i = 0;\n    }\n}\n"
 
@@ -83,7 +97,7 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         """.trimIndent()
 
         val psiFile = myFixture.configureByText("Test.java", withUnused)
-        eclipseFormatter.format(psiFile.virtualFile, settings)
+        format(psiFile, settings)
 
         assertTrue(psiFile.text.contains("public class Test"))
     }
@@ -126,7 +140,7 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         """.trimIndent()
 
         val psiFile = myFixture.configureByText("Test.java", before)
-        eclipseFormatter.format(psiFile.virtualFile, settings)
+        format(psiFile, settings)
 
         val expected = "import java.util.List;\n\nimport com.example.Foo;\n\npublic class Test {\n  List<Foo> list;\n}\n"
         assertEquals(expected, psiFile.text)
@@ -157,7 +171,7 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         """.trimIndent()
 
         val psiFile = myFixture.configureByText("Test.java", before)
-        eclipseFormatter.format(psiFile.virtualFile, settings)
+        format(psiFile, settings)
 
         val expected = "public class Test {\n  void run() {\n    int x = 1;\n  }\n}\n"
         assertEquals(expected, psiFile.text)
@@ -168,7 +182,7 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         val before = "<root><item/></root>"
         val psiFile = myFixture.configureByText("test.xml", before)
 
-        eclipseFormatter.format(psiFile.virtualFile, settings)
+        format(psiFile, settings)
 
         assertTrue(psiFile.text.contains("<root>"))
     }
@@ -178,7 +192,7 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         val before = "class Test{fun test(){}}"
         val psiFile = myFixture.configureByText("Test.kt", before)
 
-        eclipseFormatter.format(psiFile.virtualFile, settings)
+        format(psiFile, settings)
 
         assertTrue(psiFile.text.contains("fun test()"))
     }
@@ -196,7 +210,7 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         val before = "public class Test { void test() {} }"
         val psiFile = myFixture.configureByText("Test.java", before)
 
-        eclipseFormatter.format(psiFile.virtualFile, settings)
+        format(psiFile, settings)
 
         assertTrue(psiFile.text.contains("public class Test"))
     }
@@ -269,7 +283,7 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         settingsTwo.importOrderPath = importOrderFile.absolutePath
 
         val psiFileTwo = myFixture.configureByText("TestTwo.java", before)
-        eclipseFormatter.format(psiFileTwo.virtualFile, settingsTwo)
+        format(psiFileTwo, settingsTwo)
         val expectedTwo = "public class Test {\n  public void test() {\n    int i = 0;\n  }\n}\n"
         assertEquals(expectedTwo, psiFileTwo.text)
 
@@ -280,7 +294,7 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         settingsFour.importOrderPath = importOrderFile.absolutePath
 
         val psiFileFour = myFixture.configureByText("TestFour.java", before)
-        eclipseFormatter.format(psiFileFour.virtualFile, settingsFour)
+        format(psiFileFour, settingsFour)
         val expectedFour = "public class Test {\n    public void test() {\n        int i = 0;\n    }\n}\n"
         assertEquals(expectedFour, psiFileFour.text)
 
@@ -291,7 +305,69 @@ class EclipseFormatterTest : BasePlatformTestCase() {
         settingsFallback.importOrderPath = importOrderFile.absolutePath
 
         val psiFileFallback = myFixture.configureByText("TestFallback.java", before)
-        eclipseFormatter.format(psiFileFallback.virtualFile, settingsFallback)
+        format(psiFileFallback, settingsFallback)
         assertEquals(expectedTwo, psiFileFallback.text)
+    }
+
+    fun testRelativePathsAreResolvedAgainstProjectRoot() {
+        val baseDir = File(project.basePath!!)
+        val configDir = File(baseDir, "spotless-test-config")
+        configDir.mkdirs()
+        try {
+            File(configDir, "formatter.xml").writeText(
+                """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <profiles version="13">
+                    <profile kind="CodeFormatterProfile" name="TwoSpaces" version="13">
+                        <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+                        <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="2"/>
+                        <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="2"/>
+                    </profile>
+                </profiles>
+                """.trimIndent()
+            )
+            val settings = SpotlessFormatSettings.State()
+            settings.formatterXmlPath = "spotless-test-config/formatter.xml"
+
+            val psiFile = myFixture.configureByText("Relative.java", "class Relative {\nvoid run() {\n}\n}")
+            format(psiFile, settings)
+
+            assertEquals("class Relative {\n  void run() {\n  }\n}\n", psiFile.text)
+        } finally {
+            configDir.deleteRecursively()
+        }
+    }
+
+    fun testUsesJavaReleaseOfTheFileForParsing() {
+        val formatterFile = File(tempDir, "formatter.xml")
+        formatterFile.writeText(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <profiles version="13">
+                <profile kind="CodeFormatterProfile" name="Default" version="13">
+                    <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+                </profile>
+            </profiles>
+            """.trimIndent()
+        )
+        val settings = SpotlessFormatSettings.State()
+        settings.formatterXmlPath = formatterFile.absolutePath
+
+        // Record patterns in switch need Java 21; the source level is now taken from the file's module.
+        val before = "class Test {\nString f(Object o) {\nreturn switch (o) {\ncase Point(int x, int y) -> \"p\";\ndefault -> \"o\";\n};\n}\nrecord Point(int x, int y) {}\n}"
+        val formatted = eclipseFormatter.format(myFixture.configureByText("Test.java", before).virtualFile, before, settings, 21)
+
+        assertNotNull(formatted)
+        assertTrue(formatted!!.contains("case Point(int x, int y) -> \"p\";"))
+        assertTrue(formatted != before)
+    }
+
+    fun testJavaSourceLevelMapping() {
+        assertEquals("1.8", EclipseFormatter.javaSourceLevel(8))
+        assertEquals("17", EclipseFormatter.javaSourceLevel(null))
+        assertEquals("21", EclipseFormatter.javaSourceLevel(21))
+        // Never exceeds what the bundled JDT supports
+        val capped = EclipseFormatter.javaSourceLevel(999)
+        assertTrue(capped.toInt() < 999)
     }
 }

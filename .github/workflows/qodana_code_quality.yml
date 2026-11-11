@@ -6,26 +6,25 @@ on:
   push:
     branches:
       - main
-      - feature/formatter-build-detect
 
 jobs:
   qodana:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
       checks: write
       security-events: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: 'Qodana Scan'
-        uses: JetBrains/qodana-action@v2026.2
+        uses: JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f # v2026.2.2
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
         with:
@@ -41,6 +40,6 @@ jobs:
           push-fixes: 'none'
 
       - name: Upload Qodana SARIF results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json

@@ -1,29 +1,28 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <!-- Unique identifier of the plugin. It cannot be changed between the plugin versions. -->
     <id>de.spotlessformatplugin.SpotlessFormatPlugin</id>
 
-    <!-- Public plugin name should be written in Title Case.
-     Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
     <name>Spotless Formatter</name>
 
-    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://github.com/kroeppelt/SpotlessFormatPlugin">SpotlessFormatPlugin</vendor>
+    <vendor url="https://github.com/dunuld/SpotlessFormatPlugin">SpotlessFormatPlugin</vendor>
 
-    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
     <description><![CDATA[
-        A plugin to use Formatter XML and Import Order files via Spotless logic within IntelliJ IDEA.<br>
-        Allows configuring paths to these files and provides an on-save action to format changed Java files automatically.
+        Formats files with Spotless-style formatter steps directly in IntelliJ IDEA:
+        <ul>
+            <li><b>Eclipse formatter</b>: Eclipse JDT formatter XML (with profile selection) and import order files for Java</li>
+            <li><b>Google Java Format</b>: bundled google-java-format, optionally removing unused imports and sorting imports</li>
+            <li><b>Generic Spotless steps</b>: trailing whitespace, final newline and optional import order</li>
+        </ul>
+        Formatting can run as an <i>Action on Save</i> and can optionally replace the <i>Reformat Code</i> action
+        for configured file extensions.
         ]]></description>
 
-    <!-- Product and plugin compatibility requirements.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
 
-    <!-- Extensions defined by the plugin.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <resource-bundle>messages.SpotlessBundle</resource-bundle>
+
     <extensions defaultExtensionNs="com.intellij">
         <projectConfigurable
                 instance="de.spotlessformatplugin.settings.SpotlessFormatConfigurable"
@@ -32,20 +31,13 @@
                 bundle="messages.SpotlessBundle"/>
 
         <actionOnSaveInfoProvider implementation="de.spotlessformatplugin.actionsonsave.SpotlessActionOnSaveInfoProvider"/>
+        <actionOnSave implementation="de.spotlessformatplugin.actionsonsave.SpotlessActionOnSave"/>
 
         <notificationGroup id="Spotless Formatter"
                            displayType="BALLOON"
                            key="notification.group.spotless"
                            bundle="messages.SpotlessBundle"/>
+
+        <postStartupActivity implementation="de.spotlessformatplugin.actions.SpotlessReformatActionStartupActivity"/>
     </extensions>
-
-    <projectListeners>
-        <listener class="de.spotlessformatplugin.listeners.SpotlessSaveListener"
-                  topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
-    </projectListeners>
-
-    <extensions defaultExtensionNs="com.intellij">
-        <postStartupActivity implementation="de.spotlessformatplugin.actions.SpotlessReformatActionInstaller"/>
-    </extensions>
-
 </idea-plugin>

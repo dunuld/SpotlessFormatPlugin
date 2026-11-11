@@ -1,45 +1,57 @@
 package de.spotlessformatplugin.services.formatters
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import de.spotlessformatplugin.services.DocumentTextService
 import de.spotlessformatplugin.services.SpotlessNotifier
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 
+/**
+ * The test JVM gets no --add-exports/--add-opens for jdk.compiler, so these tests also verify that the plugin grants
+ * google-java-format the required access at runtime (as it must in the IDE).
+ */
 class GoogleJavaFormatFormatterTest : BasePlatformTestCase() {
 
-    private lateinit var googleJavaFormatFormatter: GoogleJavaFormatFormatter
+    private lateinit var formatter: GoogleJavaFormatFormatter
 
     override fun setUp() {
         super.setUp()
-        val notifier = SpotlessNotifier(project)
-        val documentTextService = DocumentTextService(project)
-        googleJavaFormatFormatter = GoogleJavaFormatFormatter(documentTextService, notifier)
+        formatter = GoogleJavaFormatFormatter(SpotlessNotifier(project))
     }
 
     fun testFormatJavaFile() {
         val settings = SpotlessFormatSettings.State()
-        settings.formatterType = SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT
-        settings.gjfVersion = "1.17.0"
-
         val before = "public class Test { public void test() {} }"
-        val psiFile = myFixture.configureByText("Test.java", before)
+        val file = myFixture.configureByText("Test.java", before).virtualFile
 
-        googleJavaFormatFormatter.format(psiFile.virtualFile, settings)
+        assertEquals("public class Test {\n  public void test() {}\n}\n", formatter.format(file, before, settings))
+    }
 
-        val expected = "public class Test {\n  public void test() {}\n}\n"
-        assertEquals(expected, psiFile.text)
+    fun testFixImportsRemovesUnusedAndSortsImports() {
+        val before = "import java.util.List;\nimport java.util.ArrayList;\nimport java.util.Map;\n\nclass Test { ArrayList<String> a; List<String> b; }\n"
+        val file = myFixture.configureByText("Imports.java", before).virtualFile
+
+        val settings = SpotlessFormatSettings.State()
+        val fixed = formatter.format(file, before, settings)!!
+        assertTrue(fixed.startsWith("import java.util.ArrayList;\nimport java.util.List;\n\n"))
+        assertFalse(fixed.contains("java.util.Map"))
+
+        settings.gjfFixImports = false
+        val untouched = formatter.format(file, before, settings)!!
+        assertTrue(untouched.contains("import java.util.Map;"))
     }
 
     fun testFormatNonJavaFileSkipped() {
-        val settings = SpotlessFormatSettings.State()
-        settings.formatterType = SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT
-        settings.gjfVersion = "1.17.0"
-
         val before = "const a = 1;"
-        val psiFile = myFixture.configureByText("test.js", before)
+        val file = myFixture.configureByText("test.js", before).virtualFile
+        assertNull(formatter.format(file, before, SpotlessFormatSettings.State()))
+    }
 
-        googleJavaFormatFormatter.format(psiFile.virtualFile, settings)
+    fun testSyntaxErrorReturnsNull() {
+        val before = "class Test { void run( { }"
+        val file = myFixture.configureByText("Broken.java", before).virtualFile
+        assertNull(formatter.format(file, before, SpotlessFormatSettings.State()))
+    }
 
-        assertEquals(before, psiFile.text)
+    fun testBundledVersionIsKnown() {
+        assertFalse(GoogleJavaFormatFormatter.BUNDLED_VERSION == "unknown")
     }
 }

@@ -1,86 +1,62 @@
 package de.spotlessformatplugin.services
 
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import de.spotlessformatplugin.SpotlessBundle
 import de.spotlessformatplugin.settings.SpotlessFormatSettings
 import java.io.File
 
-class SpotlessSettingsValidator(private val notifier: SpotlessNotifier) {
+class SpotlessSettingsValidator(private val project: Project, private val notifier: SpotlessNotifier) {
 
     fun validate(state: SpotlessFormatSettings.State, virtualFile: VirtualFile, resolvedConfigPath: String?): Boolean {
         if (state.useSpotlessConfig) {
-            val configPath = state.spotlessConfigPath
-            if (configPath.isBlank()) {
-                notifier.notifyError("Spotless configuration path is not configured.")
-                return false
-            }
-
+            val configPath = state.spotlessConfigPath.trim()
+            // The import order file is optional in the generic mode.
+            if (configPath.isEmpty()) return true
             val finalConfigPath = resolvedConfigPath ?: configPath
-            val configFile = File(finalConfigPath)
-            if (!configFile.exists()) {
-                notifier.notifyError("Spotless configuration file not found at: $finalConfigPath")
-                return false
-            }
-            return true
+            return checkReadableFile(
+                File(finalConfigPath),
+                "validation.generic.config.not.found",
+                "validation.generic.config.not.readable"
+            )
         }
 
         return when (state.formatterType) {
             SpotlessFormatSettings.FormatterType.ECLIPSE -> validateEclipseSettings(state, virtualFile)
-            SpotlessFormatSettings.FormatterType.PRETTIER -> validatePrettierSettings(state)
-            SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT -> validateGoogleJavaFormatSettings(state)
+            SpotlessFormatSettings.FormatterType.GOOGLE_JAVA_FORMAT -> true
         }
     }
 
     private fun validateEclipseSettings(state: SpotlessFormatSettings.State, virtualFile: VirtualFile): Boolean {
-        val extension = virtualFile.extension
-        val formatterPath = state.formatterXmlPath
-        val importOrderPath = state.importOrderPath
-
-        if (formatterPath.isBlank()) {
-            notifier.notifyError("Eclipse Formatter XML path is not configured.")
+        val formatterFile = SpotlessPaths.resolve(project, state.formatterXmlPath)
+        if (formatterFile == null) {
+            notifier.notifyConfigurationError(SpotlessBundle.message("validation.eclipse.xml.missing"))
             return false
         }
-        val formatterFile = File(formatterPath)
-        if (!formatterFile.exists()) {
-            notifier.notifyError("Eclipse Formatter XML not found at: $formatterPath")
-            return false
-        }
-        if (!formatterFile.canRead()) {
-            notifier.notifyError("Eclipse Formatter XML is not readable at: $formatterPath")
+        if (!checkReadableFile(formatterFile, "validation.eclipse.xml.not.found", "validation.eclipse.xml.not.readable")) {
             return false
         }
 
-        if (extension.equals("java", ignoreCase = true)) {
-            if (importOrderPath.isBlank()) {
-                notifier.notifyError("Import Order file path is not configured.")
+        if (virtualFile.extension.equals("java", ignoreCase = true)) {
+            val importOrderFile = SpotlessPaths.resolve(project, state.importOrderPath)
+            if (importOrderFile == null) {
+                notifier.notifyConfigurationError(SpotlessBundle.message("validation.import.order.missing"))
                 return false
             }
-            val importOrderFile = File(importOrderPath)
-            if (!importOrderFile.exists()) {
-                notifier.notifyError("Import Order file not found at: $importOrderPath")
-                return false
-            }
-            if (!importOrderFile.canRead()) {
-                notifier.notifyError("Import Order file is not readable at: $importOrderPath")
+            if (!checkReadableFile(importOrderFile, "validation.import.order.not.found", "validation.import.order.not.readable")) {
                 return false
             }
         }
         return true
     }
 
-    private fun validatePrettierSettings(state: SpotlessFormatSettings.State): Boolean {
-        if (state.prettierConfigPath.isNotBlank()) {
-            val configFile = File(state.prettierConfigPath)
-            if (!configFile.exists()) {
-                notifier.notifyError("Prettier configuration file not found at: ${state.prettierConfigPath}")
-                return false
-            }
+    private fun checkReadableFile(file: File, notFoundKey: String, notReadableKey: String): Boolean {
+        if (!file.isFile) {
+            notifier.notifyConfigurationError(SpotlessBundle.message(notFoundKey, file.path))
+            return false
         }
-        return true
-    }
-
-    private fun validateGoogleJavaFormatSettings(state: SpotlessFormatSettings.State): Boolean {
-        if (state.gjfVersion.isBlank()) {
-            notifier.notifyError("Google Java Format version is not configured.")
+        if (!file.canRead()) {
+            notifier.notifyConfigurationError(SpotlessBundle.message(notReadableKey, file.path))
             return false
         }
         return true
